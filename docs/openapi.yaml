@@ -1,0 +1,239 @@
+openapi: 3.1.0
+info:
+  title: ChargeFlow API
+  description: |
+    REST API for ChargeFlow – a mobile-first EV charging cost tracker.
+    Manages vehicle data and charging sessions, persisted in SQLite.
+  version: 1.0.0
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3001
+    description: Local development
+  - url: http://localhost:7920
+    description: Docker (production)
+
+tags:
+  - name: Car
+    description: Vehicle configuration (single vehicle, id = 1)
+  - name: Sessions
+    description: Charging session management
+
+paths:
+  /api/car:
+    get:
+      tags: [Car]
+      summary: Get vehicle data
+      description: |
+        Returns the stored vehicle configuration.
+        If no vehicle has been set up yet, returns zeroed defaults.
+      operationId: getCar
+      responses:
+        "200":
+          description: Vehicle data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarData"
+              examples:
+                configured:
+                  summary: Vehicle configured
+                  value:
+                    name: Tesla Model 3
+                    batteryCapacityKWh: 60
+                    maxDCChargingKW: 170
+                    maxACChargingKW: 11
+                empty:
+                  summary: No vehicle configured
+                  value:
+                    name: ""
+                    batteryCapacityKWh: 0
+                    maxDCChargingKW: 0
+                    maxACChargingKW: 0
+
+    put:
+      tags: [Car]
+      summary: Create or update vehicle data
+      description: |
+        Upserts the vehicle configuration (always id = 1).
+        Triggers a CSV re-sync if `CSV_PATH` is configured.
+      operationId: upsertCar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarData"
+            example:
+              name: Tesla Model 3
+              batteryCapacityKWh: 60
+              maxDCChargingKW: 170
+              maxACChargingKW: 11
+      responses:
+        "200":
+          description: Successfully saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /api/sessions:
+    get:
+      tags: [Sessions]
+      summary: List all charging sessions
+      description: Returns all charging sessions, ordered by date descending.
+      operationId: listSessions
+      responses:
+        "200":
+          description: Array of charging sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChargingSession"
+              example:
+                - id: "550e8400-e29b-41d4-a716-446655440000"
+                  date: "2026-02-28"
+                  kWhCharged: 42.5
+                  pricePerKWh: 0.39
+                  totalCost: 16.58
+                  note: IONITY A3
+                - id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                  date: "2026-01-15"
+                  kWhCharged: 30
+                  pricePerKWh: 0.55
+                  totalCost: 16.5
+
+    post:
+      tags: [Sessions]
+      summary: Add or replace a charging session
+      description: |
+        Inserts a new charging session or replaces an existing one with the same `id`.
+        The client generates the UUID. Triggers a CSV re-sync if `CSV_PATH` is configured.
+      operationId: addSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChargingSession"
+            example:
+              id: "550e8400-e29b-41d4-a716-446655440000"
+              date: "2026-03-01"
+              kWhCharged: 42.5
+              pricePerKWh: 0.39
+              totalCost: 16.58
+              note: IONITY A3
+      responses:
+        "200":
+          description: Successfully saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /api/sessions/{id}:
+    delete:
+      tags: [Sessions]
+      summary: Delete a charging session
+      description: |
+        Deletes the charging session with the given UUID.
+        Triggers a CSV re-sync if `CSV_PATH` is configured.
+      operationId: deleteSession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the charging session
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Successfully deleted (even if id didn't exist)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+components:
+  schemas:
+    CarData:
+      type: object
+      description: Vehicle configuration
+      required:
+        - name
+        - batteryCapacityKWh
+        - maxDCChargingKW
+        - maxACChargingKW
+      properties:
+        name:
+          type: string
+          description: Display name of the vehicle
+          example: Tesla Model 3
+        batteryCapacityKWh:
+          type: number
+          format: float
+          description: Usable battery capacity in kWh
+          example: 60
+        maxDCChargingKW:
+          type: number
+          format: float
+          description: Maximum DC charging power in kW
+          example: 170
+        maxACChargingKW:
+          type: number
+          format: float
+          description: Maximum AC charging power in kW
+          example: 11
+
+    ChargingSession:
+      type: object
+      description: A single charging session record
+      required:
+        - id
+        - date
+        - kWhCharged
+        - pricePerKWh
+        - totalCost
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Client-generated UUID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        date:
+          type: string
+          format: date
+          description: Date of the charging session (ISO 8601)
+          example: "2026-03-01"
+        kWhCharged:
+          type: number
+          format: float
+          description: Amount of energy charged in kWh
+          example: 42.5
+        pricePerKWh:
+          type: number
+          format: float
+          description: Price per kWh in EUR
+          example: 0.39
+        totalCost:
+          type: number
+          format: float
+          description: Total cost in EUR (kWhCharged × pricePerKWh)
+          example: 16.58
+        note:
+          type: string
+          nullable: true
+          description: Optional note (e.g. charging station location)
+          example: IONITY A3
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true

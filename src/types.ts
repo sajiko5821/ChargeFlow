@@ -1,0 +1,35 @@
+export interface CarData {
+    name: string;
+    batteryCapacityKWh: number;
+    maxDCChargingKW: number;
+    maxACChargingKW: number;
+}
+
+export interface ChargingSession {
+    id: string;
+    date: string; // ISO date string
+    kWhCharged: number;
+    pricePerKWh: number; // in EUR cents
+    totalCost: number; // in EUR
+    note?: string;
+}
+
+export interface MonthlyOverview {
+    month: string; // YYYY-MM
+    label: string; // e.g. "Januar 2026"
+    totalKWh: number;
+    totalCost: number;
+    sessionCount: number;
+    avgPricePerKWh: number;
+}
+
+export interface YearlyOverview {
+    year: number;
+    totalKWh: number;
+    totalCost: number;
+    sessionCount: number;
+    avgPricePerKWh: number;
+    months: MonthlyOverview[];
+}
+
+export type TabId = 'car' | 'charging' | 'calculator' | 'statistics';
