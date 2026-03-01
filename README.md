@@ -57,6 +57,8 @@ npm run server &
 npm run dev
 ```
 
+`npm run server` does not set `NODE_ENV=production`, so the backend runs in development mode.
+
 Open [http://localhost:5173](http://localhost:5173) — API requests are proxied to the backend automatically.
 
 ### Production Build
@@ -104,9 +106,12 @@ No port mapping needed — traffic goes through the tunnel.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `7920` | HTTP server port |
+| `NODE_ENV` | `production` | Runtime mode in Docker images (enables production hardening paths) |
 | `DB_PATH` | `/data/chargeflow.db` | Path to SQLite database file |
 | `CSV_PATH` | `/data/chargeflow.csv` | Path to CSV export file (set to `""` to disable) |
-| `TUNNEL_TOKEN` | `""` | Cloudflare Tunnel token (AIO image only) |
+| `TUNNEL_TOKEN` | _(none)_ | Optional Cloudflare Tunnel token (AIO image only, pass via `-e TUNNEL_TOKEN=...`) |
+
+If `NODE_ENV` is not set (or set to anything other than `production`), the backend uses development behavior.
 
 ### CSV Backup to External Volume
 

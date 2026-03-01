@@ -25,7 +25,9 @@ COPY --from=builder /app/dist ./dist
 COPY server ./server
 
 # Data volume for SQLite persistence
-RUN mkdir -p /data
+RUN addgroup -S app && adduser -S app -G app && \
+    mkdir -p /data && \
+    chown -R app:app /app /data
 VOLUME /data
 ENV DB_PATH=/data/chargeflow.db
 
@@ -33,7 +35,10 @@ ENV DB_PATH=/data/chargeflow.db
 # e.g. -v /my/backup:/export -e CSV_PATH=/export/chargeflow.csv
 ENV CSV_PATH=/data/chargeflow.csv
 
+ENV NODE_ENV=production
 ENV PORT=7920
 EXPOSE 7920
+
+USER app
 
 CMD ["npx", "tsx", "server/index.ts"]
