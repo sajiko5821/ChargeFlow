@@ -8,6 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const CSV_PATH = process.env.CSV_PATH || '';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 // ── Database Setup ──
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'chargeflow.db');
@@ -179,6 +181,34 @@ app.put('/api/car', (req, res) => {
 
 // ── Session Routes ──
 
+function validateSessionFields(input: {
+    date: unknown;
+    kWhCharged: unknown;
+    pricePerKWh: unknown;
+    totalCost: unknown;
+    note: unknown;
+}): string | null {
+    const { date, kWhCharged, pricePerKWh, totalCost, note } = input;
+
+    if (typeof date !== 'string' || !DATE_REGEX.test(date) || isNaN(Date.parse(date))) {
+        return 'Invalid date (YYYY-MM-DD format required)';
+    }
+    if (typeof kWhCharged !== 'number' || !isFinite(kWhCharged) || kWhCharged <= 0 || kWhCharged > 10000) {
+        return 'Invalid kWhCharged (must be > 0 and <= 10000)';
+    }
+    if (typeof pricePerKWh !== 'number' || !isFinite(pricePerKWh) || pricePerKWh <= 0 || pricePerKWh > 100) {
+        return 'Invalid pricePerKWh (must be > 0 and <= 100)';
+    }
+    if (typeof totalCost !== 'number' || !isFinite(totalCost) || totalCost < 0 || totalCost > 100000) {
+        return 'Invalid totalCost (must be >= 0 and <= 100000)';
+    }
+    if (note !== undefined && note !== null && (typeof note !== 'string' || note.length > 500)) {
+        return 'Invalid note (max 500 chars)';
+    }
+
+    return null;
+}
+
 app.get('/api/sessions', (_req, res) => {
     const rows = db.prepare('SELECT id, date, kwh_charged, price_per_kwh, total_cost, note FROM charging_session ORDER BY date DESC').all() as Record<string, unknown>[];
     const sessions = rows.map((row) => ({
@@ -196,30 +226,14 @@ app.post('/api/sessions', (req, res) => {
     const { id, date, kWhCharged, pricePerKWh, totalCost, note } = req.body;
 
     // Input validation
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (typeof id !== 'string' || !uuidRegex.test(id)) {
+    if (typeof id !== 'string' || !UUID_REGEX.test(id)) {
         res.status(400).json({ error: 'Invalid id (UUID v4 format required)' });
         return;
     }
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (typeof date !== 'string' || !dateRegex.test(date) || isNaN(Date.parse(date))) {
-        res.status(400).json({ error: 'Invalid date (YYYY-MM-DD format required)' });
-        return;
-    }
-    if (typeof kWhCharged !== 'number' || !isFinite(kWhCharged) || kWhCharged <= 0 || kWhCharged > 10000) {
-        res.status(400).json({ error: 'Invalid kWhCharged (must be > 0 and <= 10000)' });
-        return;
-    }
-    if (typeof pricePerKWh !== 'number' || !isFinite(pricePerKWh) || pricePerKWh <= 0 || pricePerKWh > 100) {
-        res.status(400).json({ error: 'Invalid pricePerKWh (must be > 0 and <= 100)' });
-        return;
-    }
-    if (typeof totalCost !== 'number' || !isFinite(totalCost) || totalCost < 0 || totalCost > 100000) {
-        res.status(400).json({ error: 'Invalid totalCost (must be >= 0 and <= 100000)' });
-        return;
-    }
-    if (note !== undefined && note !== null && (typeof note !== 'string' || note.length > 500)) {
-        res.status(400).json({ error: 'Invalid note (max 500 chars)' });
+
+    const sessionFieldsError = validateSessionFields({ date, kWhCharged, pricePerKWh, totalCost, note });
+    if (sessionFieldsError) {
+        res.status(400).json({ error: sessionFieldsError });
         return;
     }
 
@@ -227,6 +241,36 @@ app.post('/api/sessions', (req, res) => {
     INSERT INTO charging_session (id, date, kwh_charged, price_per_kwh, total_cost, note)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(id, date, kWhCharged, pricePerKWh, totalCost, note ?? null);
+    syncCsv();
+    res.json({ ok: true });
+});
+
+app.put('/api/sessions/:id', (req, res) => {
+    const { id } = req.params;
+    const { date, kWhCharged, pricePerKWh, totalCost, note } = req.body;
+
+    if (typeof id !== 'string' || id.trim().length === 0 || id.length > 200) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+
+    const sessionFieldsError = validateSessionFields({ date, kWhCharged, pricePerKWh, totalCost, note });
+    if (sessionFieldsError) {
+        res.status(400).json({ error: sessionFieldsError });
+        return;
+    }
+
+    const result = db.prepare(`
+    UPDATE charging_session
+    SET date = ?, kwh_charged = ?, price_per_kwh = ?, total_cost = ?, note = ?
+    WHERE id = ?
+  `).run(date, kWhCharged, pricePerKWh, totalCost, note ?? null, id);
+
+    if (result.changes === 0) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+    }
+
     syncCsv();
     res.json({ ok: true });
 });

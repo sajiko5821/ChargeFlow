@@ -12,7 +12,7 @@ import { Zap, Loader2, Sun, Moon, Languages } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>('charging');
-  const { ready, carData, sessions, saveCar, addSession, deleteSession } = useDatabase();
+  const { ready, carData, sessions, saveCar, addSession, updateSession, deleteSession } = useDatabase();
   const { theme, toggleTheme } = useTheme();
   const { t, locale, setLocale } = useI18n();
 
@@ -60,7 +60,12 @@ function App() {
       <main className="flex-1 overflow-y-auto pb-20">
         {activeTab === 'car' && <CarTab carData={carData} onSave={saveCar} />}
         {activeTab === 'charging' && (
-          <ChargingTab sessions={sessions} onAddSession={addSession} onDeleteSession={deleteSession} />
+          <ChargingTab
+            sessions={sessions}
+            onAddSession={addSession}
+            onUpdateSession={updateSession}
+            onDeleteSession={deleteSession}
+          />
         )}
         {activeTab === 'calculator' && <CalculatorTab carData={carData} />}
         {activeTab === 'statistics' && <StatisticsTab sessions={sessions} />}

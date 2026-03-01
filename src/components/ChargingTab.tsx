@@ -4,6 +4,7 @@ import {
     Plus,
     Zap,
     TrendingUp,
+    Edit3,
     Trash2,
     X,
 } from 'lucide-react';
@@ -13,15 +14,21 @@ import { useI18n } from '../i18n/I18nContext';
 interface ChargingTabProps {
     sessions: ChargingSession[];
     onAddSession: (session: ChargingSession) => Promise<void>;
+    onUpdateSession: (session: ChargingSession) => Promise<void>;
     onDeleteSession: (id: string) => Promise<void>;
 }
 
-export function ChargingTab({ sessions, onAddSession, onDeleteSession }: ChargingTabProps) {
+export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteSession }: ChargingTabProps) {
     const [showForm, setShowForm] = useState(false);
     const [kWh, setKWh] = useState('');
     const [pricePerKWh, setPricePerKWh] = useState('');
     const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
     const [note, setNote] = useState('');
+    const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+    const [editKWh, setEditKWh] = useState('');
+    const [editPricePerKWh, setEditPricePerKWh] = useState('');
+    const [editDate, setEditDate] = useState('');
+    const [editNote, setEditNote] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const { t, locale } = useI18n();
 
@@ -83,7 +90,50 @@ export function ChargingTab({ sessions, onAddSession, onDeleteSession }: Chargin
         } catch (err) {
             console.error('Error deleting:', err);
         }
+        if (editingSessionId === id) {
+            setEditingSessionId(null);
+        }
         setDeleteConfirm(null);
+    };
+
+    const startEdit = (session: ChargingSession) => {
+        setEditingSessionId(session.id);
+        setEditDate(session.date);
+        setEditKWh(String(session.kWhCharged));
+        setEditPricePerKWh(String(session.pricePerKWh));
+        setEditNote(session.note ?? '');
+        setDeleteConfirm(null);
+    };
+
+    const cancelEdit = () => {
+        setEditingSessionId(null);
+        setEditDate('');
+        setEditKWh('');
+        setEditPricePerKWh('');
+        setEditNote('');
+    };
+
+    const handleUpdateSession = async (id: string) => {
+        const kWhNum = parseFloat(editKWh);
+        const priceNum = parseFloat(editPricePerKWh);
+        if (isNaN(kWhNum) || isNaN(priceNum) || kWhNum <= 0 || priceNum <= 0 || !editDate) return;
+
+        const updatedSession: ChargingSession = {
+            id,
+            date: editDate,
+            kWhCharged: kWhNum,
+            pricePerKWh: priceNum,
+            totalCost: Math.round(kWhNum * priceNum * 100) / 100,
+            note: editNote.trim() || undefined,
+        };
+
+        try {
+            await onUpdateSession(updatedSession);
+            cancelEdit();
+        } catch (err) {
+            console.error('Error updating:', err);
+            alert(t.errorSavingSession);
+        }
     };
 
     return (
@@ -213,48 +263,131 @@ export function ChargingTab({ sessions, onAddSession, onDeleteSession }: Chargin
                     {sessions.slice(0, 20).map((session) => (
                         <div
                             key={session.id}
-                            className="bg-[var(--color-card)] rounded-xl p-4 shadow-sm border border-[var(--color-border)] flex items-center justify-between"
+                            className="bg-[var(--color-card)] rounded-xl p-4 shadow-sm border border-[var(--color-border)]"
                         >
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium">{formatDate(session.date)}</span>
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-highlight)] text-[var(--color-primary)]">
-                                        {session.kWhCharged} kWh
-                                    </span>
-                                </div>
-                                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                                    {session.pricePerKWh.toFixed(2)} €/kWh
-                                    {session.note && ` · ${session.note}`}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="font-semibold text-sm whitespace-nowrap">
-                                    {formatCurrency(session.totalCost)}
-                                </span>
-                                {deleteConfirm === session.id ? (
-                                    <div className="flex gap-1">
+                            {editingSessionId === session.id ? (
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                            {t.date}
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={editDate}
+                                            onChange={(e) => setEditDate(e.target.value)}
+                                            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                                {t.charged}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                inputMode="decimal"
+                                                value={editKWh}
+                                                onChange={(e) => setEditKWh(e.target.value)}
+                                                placeholder={t.chargedPlaceholder}
+                                                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                                {t.pricePerKWh}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                inputMode="decimal"
+                                                value={editPricePerKWh}
+                                                onChange={(e) => setEditPricePerKWh(e.target.value)}
+                                                placeholder={t.pricePerKWhPlaceholder}
+                                                step="0.01"
+                                                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                            {t.noteOptional}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={editNote}
+                                            onChange={(e) => setEditNote(e.target.value)}
+                                            placeholder={t.notePlaceholder}
+                                            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-2">
                                         <button
-                                            onClick={() => handleDelete(session.id)}
-                                            className="p-1.5 rounded-lg bg-[var(--color-highlight-danger)] text-[var(--color-danger)] active:scale-90 transition-transform"
+                                            onClick={cancelEdit}
+                                            className="flex-1 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-medium active:scale-95 transition-transform"
                                         >
-                                            <Trash2 size={14} />
+                                            {t.cancel}
                                         </button>
                                         <button
-                                            onClick={() => setDeleteConfirm(null)}
-                                            className="p-1.5 rounded-lg bg-[var(--color-highlight-muted)] text-[var(--color-text-muted)] active:scale-90 transition-transform"
+                                            onClick={() => handleUpdateSession(session.id)}
+                                            disabled={!editDate || !editKWh || !editPricePerKWh || parseFloat(editKWh) <= 0 || parseFloat(editPricePerKWh) <= 0}
+                                            className="flex-1 py-2.5 rounded-xl bg-[var(--color-primary)] text-white font-medium disabled:opacity-40 active:scale-95 transition-transform"
                                         >
-                                            <X size={14} />
+                                            {t.save}
                                         </button>
                                     </div>
-                                ) : (
-                                    <button
-                                        onClick={() => setDeleteConfirm(session.id)}
-                                        className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                )}
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{formatDate(session.date)}</span>
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-highlight)] text-[var(--color-primary)]">
+                                                {session.kWhCharged} kWh
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                                            {session.pricePerKWh.toFixed(2)} €/kWh
+                                            {session.note && ` · ${session.note}`}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-sm whitespace-nowrap">
+                                            {formatCurrency(session.totalCost)}
+                                        </span>
+                                        <button
+                                            onClick={() => startEdit(session)}
+                                            className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
+                                        >
+                                            <Edit3 size={14} />
+                                        </button>
+                                        {deleteConfirm === session.id ? (
+                                            <div className="flex gap-1">
+                                                <button
+                                                    onClick={() => handleDelete(session.id)}
+                                                    className="p-1.5 rounded-lg bg-[var(--color-highlight-danger)] text-[var(--color-danger)] active:scale-90 transition-transform"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteConfirm(null)}
+                                                    className="p-1.5 rounded-lg bg-[var(--color-highlight-muted)] text-[var(--color-text-muted)] active:scale-90 transition-transform"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setDeleteConfirm(session.id)}
+                                                className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

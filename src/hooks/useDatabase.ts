@@ -5,6 +5,7 @@ import {
     saveCarAndPersist,
     getAllSessions,
     addSessionAndPersist,
+    updateSessionAndPersist,
     deleteSessionAndPersist,
 } from '../db/database';
 import type { CarData, ChargingSession } from '../types';
@@ -22,6 +23,7 @@ interface UseDatabase {
     sessions: ChargingSession[];
     saveCar: (car: CarData) => Promise<void>;
     addSession: (session: ChargingSession) => Promise<void>;
+    updateSession: (session: ChargingSession) => Promise<void>;
     deleteSession: (id: string) => Promise<void>;
 }
 
@@ -53,6 +55,11 @@ export function useDatabase(): UseDatabase {
         setSessions(await getAllSessions());
     }, []);
 
+    const updateSessionCb = useCallback(async (session: ChargingSession) => {
+        await updateSessionAndPersist(session);
+        setSessions(await getAllSessions());
+    }, []);
+
     const deleteSessionCb = useCallback(async (id: string) => {
         await deleteSessionAndPersist(id);
         setSessions(await getAllSessions());
@@ -64,6 +71,7 @@ export function useDatabase(): UseDatabase {
         sessions,
         saveCar,
         addSession: addSessionCb,
+        updateSession: updateSessionCb,
         deleteSession: deleteSessionCb,
     };
 }

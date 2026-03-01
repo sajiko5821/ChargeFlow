@@ -36,6 +36,21 @@ export async function addSessionAndPersist(session: ChargingSession): Promise<vo
     if (!res.ok) throw new Error('Failed to save session');
 }
 
+export async function updateSessionAndPersist(session: ChargingSession): Promise<void> {
+    const res = await fetch(`${API_BASE}/sessions/${session.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            date: session.date,
+            kWhCharged: session.kWhCharged,
+            pricePerKWh: session.pricePerKWh,
+            totalCost: session.totalCost,
+            note: session.note,
+        }),
+    });
+    if (!res.ok) throw new Error('Failed to update session');
+}
+
 export async function deleteSessionAndPersist(id: string): Promise<void> {
     const res = await fetch(`${API_BASE}/sessions/${id}`, {
         method: 'DELETE',

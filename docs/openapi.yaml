@@ -108,9 +108,9 @@ paths:
 
     post:
       tags: [Sessions]
-      summary: Add or replace a charging session
+      summary: Add a charging session
       description: |
-        Inserts a new charging session or replaces an existing one with the same `id`.
+        Inserts a new charging session.
         The client generates the UUID. Triggers a CSV re-sync if `CSV_PATH` is configured.
       operationId: addSession
       requestBody:
@@ -135,6 +135,43 @@ paths:
                 $ref: "#/components/schemas/OkResponse"
 
   /api/sessions/{id}:
+    put:
+      tags: [Sessions]
+      summary: Update a charging session
+      description: |
+        Updates an existing charging session by UUID.
+        Triggers a CSV re-sync if `CSV_PATH` is configured.
+      operationId: updateSession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the charging session
+          schema:
+            type: string
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChargingSessionUpdate"
+            example:
+              date: "2026-03-01"
+              kWhCharged: 42.5
+              pricePerKWh: 0.39
+              totalCost: 16.58
+              note: IONITY A3
+      responses:
+        "200":
+          description: Successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "404":
+          description: Session not found
+
     delete:
       tags: [Sessions]
       summary: Delete a charging session
@@ -146,10 +183,9 @@ paths:
         - name: id
           in: path
           required: true
-          description: UUID of the charging session
+          description: ID of the charging session
           schema:
             type: string
-            format: uuid
             example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
@@ -205,6 +241,41 @@ components:
           format: uuid
           description: Client-generated UUID
           example: "550e8400-e29b-41d4-a716-446655440000"
+        date:
+          type: string
+          format: date
+          description: Date of the charging session (ISO 8601)
+          example: "2026-03-01"
+        kWhCharged:
+          type: number
+          format: float
+          description: Amount of energy charged in kWh
+          example: 42.5
+        pricePerKWh:
+          type: number
+          format: float
+          description: Price per kWh in EUR
+          example: 0.39
+        totalCost:
+          type: number
+          format: float
+          description: Total cost in EUR (kWhCharged × pricePerKWh)
+          example: 16.58
+        note:
+          type: string
+          nullable: true
+          description: Optional note (e.g. charging station location)
+          example: IONITY A3
+
+    ChargingSessionUpdate:
+      type: object
+      description: Fields for updating an existing charging session
+      required:
+        - date
+        - kWhCharged
+        - pricePerKWh
+        - totalCost
+      properties:
         date:
           type: string
           format: date
