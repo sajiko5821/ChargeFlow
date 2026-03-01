@@ -40,7 +40,9 @@ COPY docker/aio-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Data volume for SQLite persistence
-RUN mkdir -p /data
+RUN addgroup -S app && adduser -S app -G app && \
+    mkdir -p /data && \
+    chown -R app:app /app /data
 VOLUME /data
 ENV DB_PATH=/data/chargeflow.db
 
@@ -48,11 +50,10 @@ ENV DB_PATH=/data/chargeflow.db
 # e.g. -v /my/backup:/export -e CSV_PATH=/export/chargeflow.csv
 ENV CSV_PATH=/data/chargeflow.csv
 
+ENV NODE_ENV=production
 ENV PORT=7920
 EXPOSE 7920
 
-# Cloudflare Tunnel token – must be provided at runtime
-# docker run -e TUNNEL_TOKEN=<token> ...
-ENV TUNNEL_TOKEN=""
+USER app
 
 ENTRYPOINT ["/entrypoint.sh"]

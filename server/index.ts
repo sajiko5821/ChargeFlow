@@ -1,4 +1,6 @@
 import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
@@ -10,6 +12,7 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 const CSV_PATH = process.env.CSV_PATH || '';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // ── Database Setup ──
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'chargeflow.db');
@@ -42,15 +45,50 @@ db.exec(`
 `);
 
 // ── Middleware ──
+app.disable('x-powered-by');
+app.use(
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'"],
+                styleSrc: ["'self'", "'unsafe-inline'"],
+                imgSrc: ["'self'", 'data:'],
+                connectSrc: ["'self'"],
+                objectSrc: ["'none'"],
+                baseUri: ["'self'"],
+                frameAncestors: ["'none'"],
+                formAction: ["'self'"],
+            },
+        },
+        crossOriginEmbedderPolicy: false,
+    })
+);
 app.use(express.json({ limit: '100kb' }));
+
+const mutationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' },
+});
+const mutationMiddleware = IS_PRODUCTION ? [mutationLimiter] : [];
 
 // ── CSV Export ──
 
 function escapeCsvField(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-        return `"${value.replace(/"/g, '""')}"`;
+    let safeValue = value;
+
+    // CSV formula injection mitigation (Excel/Sheets)
+    if (/^[=+\-@\t\r]/.test(safeValue)) {
+        safeValue = `'${safeValue}`;
     }
-    return value;
+
+    if (safeValue.includes(',') || safeValue.includes('"') || safeValue.includes('\n')) {
+        return `"${safeValue.replace(/"/g, '""')}"`;
+    }
+    return safeValue;
 }
 
 function syncCsv(): void {
@@ -145,7 +183,7 @@ app.get('/api/car', (_req, res) => {
     });
 });
 
-app.put('/api/car', (req, res) => {
+app.put('/api/car', ...mutationMiddleware, (req, res) => {
     const { name, batteryCapacityKWh, maxDCChargingKW, maxACChargingKW } = req.body;
 
     // Input validation
@@ -222,7 +260,7 @@ app.get('/api/sessions', (_req, res) => {
     res.json(sessions);
 });
 
-app.post('/api/sessions', (req, res) => {
+app.post('/api/sessions', ...mutationMiddleware, (req, res) => {
     const { id, date, kWhCharged, pricePerKWh, totalCost, note } = req.body;
 
     // Input validation
@@ -245,7 +283,7 @@ app.post('/api/sessions', (req, res) => {
     res.json({ ok: true });
 });
 
-app.put('/api/sessions/:id', (req, res) => {
+app.put('/api/sessions/:id', ...mutationMiddleware, (req, res) => {
     const { id } = req.params;
     const { date, kWhCharged, pricePerKWh, totalCost, note } = req.body;
 
@@ -275,7 +313,7 @@ app.put('/api/sessions/:id', (req, res) => {
     res.json({ ok: true });
 });
 
-app.delete('/api/sessions/:id', (req, res) => {
+app.delete('/api/sessions/:id', ...mutationMiddleware, (req, res) => {
     db.prepare('DELETE FROM charging_session WHERE id = ?').run(req.params.id);
     syncCsv();
     res.json({ ok: true });
