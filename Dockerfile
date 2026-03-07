@@ -27,7 +27,7 @@ RUN addgroup -S app && adduser -S app -G app && \
     mkdir -p /data
 
 # Copy and setup entrypoint
-COPY entrypoint.sh /entrypoint.sh
+COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 VOLUME /data
