@@ -1,16 +1,16 @@
 # ── Stage 1: Build frontend ──
 FROM node:22-alpine AS builder
-
 WORKDIR /app
-
 COPY package.json package-lock.json ./
 RUN npm ci
-
 COPY . .
 RUN npm run build
 
 # ── Stage 2: Production image ──
 FROM node:22-alpine
+
+# Install su-exec to switch users safely at runtime
+RUN apk add --no-cache su-exec
 
 WORKDIR /app
 
@@ -18,27 +18,28 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy built frontend
+# Copy built frontend & server source
 COPY --from=builder /app/dist ./dist
-
-# Copy server source
 COPY server ./server
 
-# Data volume for SQLite persistence
+# Create the user 'app' and the /data directory
 RUN addgroup -S app && adduser -S app -G app && \
-    mkdir -p /data && \
-    chown -R app:app /app /data
+    mkdir -p /data
+
+# Copy and setup entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 VOLUME /data
 ENV DB_PATH=/data/chargeflow.db
-
-# CSV export path – set to "" to disable, or mount an external volume
-# e.g. -v /my/backup:/export -e CSV_PATH=/export/chargeflow.csv
 ENV CSV_PATH=/data/chargeflow.csv
-
 ENV NODE_ENV=production
 ENV PORT=7920
 EXPOSE 7920
 
-USER app
+# Start as root so entrypoint.sh can modify UIDs
+USER root
 
-CMD ["npx", "tsx", "server/index.ts"]
+ENTRYPOINT ["/entrypoint.sh"]
+
+CMD ["node", "--import", "tsx/esm", "server/index.ts"]
