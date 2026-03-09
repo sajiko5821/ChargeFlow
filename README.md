@@ -33,6 +33,7 @@
 - 🌙 **Dark mode** with system-preference detection and manual toggle
 - 🌍 **Multi-language** — German & English with browser auto-detection
 - 📄 **CSV export** — automatic backup of all data to a CSV file
+- 📡 **Local MQTT push** — publishes API snapshot to Mosquitto/Home Assistant
 - 🐳 **Docker-ready** — standard image + AIO image with Cloudflare Tunnel
 - 📱 **Mobile-first** — designed for phones, works everywhere
 
@@ -109,6 +110,13 @@ No port mapping needed — traffic goes through the tunnel.
 | `NODE_ENV` | `production` | Runtime mode in Docker images (enables production hardening paths) |
 | `DB_PATH` | `/data/chargeflow.db` | Path to SQLite database file |
 | `CSV_PATH` | `/data/chargeflow.csv` | Path to CSV export file (set to `""` to disable) |
+| `MQTT_ENABLED` | `false` | Enable local MQTT push integration |
+| `MQTT_BROKER_URL` | `""` | MQTT broker URL, e.g. `mqtt://192.168.1.10:1883` |
+| `MQTT_USERNAME` | `""` | MQTT username |
+| `MQTT_PASSWORD` | `""` | MQTT password |
+| `MQTT_TOPIC_PREFIX` | `chargeflow` | Base topic for published state |
+| `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant MQTT discovery prefix |
+| `MQTT_CLIENT_ID` | `""` | Optional MQTT client ID |
 | `TUNNEL_TOKEN` | _(none)_ | Optional Cloudflare Tunnel token (AIO image only, pass via `-e TUNNEL_TOKEN=...`) |
 
 If `NODE_ENV` is not set (or set to anything other than `production`), the backend uses development behavior.
@@ -137,8 +145,52 @@ The backend exposes a REST API under `/api`. Full specification: [`docs/openapi.
 | `GET` | `/api/car` | Get vehicle data |
 | `PUT` | `/api/car` | Create/update vehicle |
 | `GET` | `/api/sessions` | List all charging sessions |
-| `POST` | `/api/sessions` | Add or replace a session |
+| `POST` | `/api/sessions` | Add a session |
+| `PUT` | `/api/sessions/:id` | Update a session |
 | `DELETE` | `/api/sessions/:id` | Delete a session |
+| `GET` | `/api/mqtt` | Get MQTT configuration (without plain password) |
+| `PUT` | `/api/mqtt` | Save/update MQTT broker configuration |
+| `POST` | `/api/mqtt/push` | Trigger manual MQTT snapshot push |
+
+### MQTT / Home Assistant Integration
+
+ChargeFlow can push the full local API snapshot (`car`, `sessions`, aggregated `statistics`) to a local MQTT broker (e.g. Mosquitto).
+
+- Home Assistant MQTT discovery publishes multiple sensor entities automatically:
+  - `Car Name`
+  - `Battery Capacity` (`kWh`)
+  - `Max DC Charging` (`kW`)
+  - `Max AC Charging` (`kW`)
+  - `Total Cost` (`EUR`)
+  - `Total Energy` (`kWh`)
+  - `Session Count`
+  - `Avg Price per kWh` (`EUR/kWh`)
+  - `Current Month Energy` (`kWh`)
+  - `Current Month Cost` (`EUR`)
+  - `Avg Energy per Month` (`kWh/month`)
+  - `Avg Cost per Month` (`EUR/month`)
+- The Home Assistant **device name is the configured car name** from the app.
+- All API information is available as JSON attributes on each discovered sensor entity.
+- On every mutation (`PUT /api/car`, `POST/PUT/DELETE /api/sessions`), ChargeFlow pushes an updated MQTT snapshot.
+
+Example MQTT config via API:
+
+```bash
+curl -X PUT http://localhost:7920/api/mqtt \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "enabled": true,
+    "brokerUrl": "mqtt://192.168.1.10:1883",
+    "username": "homeassistant",
+    "password": "supersecret",
+    "topicPrefix": "chargeflow",
+    "discoveryPrefix": "homeassistant",
+    "clientId": "chargeflow-server"
+  }'
+
+# Optional: force a manual push
+curl -X POST http://localhost:7920/api/mqtt/push
+```
 
 ### Example
 

@@ -19,6 +19,8 @@ tags:
     description: Vehicle configuration (single vehicle, id = 1)
   - name: Sessions
     description: Charging session management
+  - name: MQTT
+    description: Local MQTT push integration for Home Assistant
 
 paths:
   /api/car:
@@ -57,7 +59,7 @@ paths:
       summary: Create or update vehicle data
       description: |
         Upserts the vehicle configuration (always id = 1).
-        Triggers a CSV re-sync if `CSV_PATH` is configured.
+        Triggers a CSV re-sync if `CSV_PATH` is configured and pushes a MQTT snapshot if MQTT is enabled.
       operationId: upsertCar
       requestBody:
         required: true
@@ -111,7 +113,7 @@ paths:
       summary: Add a charging session
       description: |
         Inserts a new charging session.
-        The client generates the UUID. Triggers a CSV re-sync if `CSV_PATH` is configured.
+        The client generates the UUID. Triggers a CSV re-sync if `CSV_PATH` is configured and pushes a MQTT snapshot if MQTT is enabled.
       operationId: addSession
       requestBody:
         required: true
@@ -140,7 +142,7 @@ paths:
       summary: Update a charging session
       description: |
         Updates an existing charging session by UUID.
-        Triggers a CSV re-sync if `CSV_PATH` is configured.
+        Triggers a CSV re-sync if `CSV_PATH` is configured and pushes a MQTT snapshot if MQTT is enabled.
       operationId: updateSession
       parameters:
         - name: id
@@ -177,7 +179,7 @@ paths:
       summary: Delete a charging session
       description: |
         Deletes the charging session with the given UUID.
-        Triggers a CSV re-sync if `CSV_PATH` is configured.
+        Triggers a CSV re-sync if `CSV_PATH` is configured and pushes a MQTT snapshot if MQTT is enabled.
       operationId: deleteSession
       parameters:
         - name: id
@@ -194,6 +196,75 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OkResponse"
+
+  /api/mqtt:
+    get:
+      tags: [MQTT]
+      summary: Get MQTT configuration
+      description: |
+        Returns MQTT integration settings.
+        For security reasons, the password is never returned directly.
+      operationId: getMqttConfig
+      responses:
+        "200":
+          description: MQTT configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MqttConfigResponse"
+
+    put:
+      tags: [MQTT]
+      summary: Create or update MQTT configuration
+      description: |
+        Stores MQTT broker settings used for local push to Home Assistant.
+        If enabled, a live MQTT push is attempted immediately.
+      operationId: upsertMqttConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MqttConfigRequest"
+            example:
+              enabled: true
+              brokerUrl: mqtt://192.168.1.10:1883
+              username: homeassistant
+              password: supersecret
+              topicPrefix: chargeflow
+              discoveryPrefix: homeassistant
+              clientId: chargeflow-server
+      responses:
+        "200":
+          description: Successfully saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Invalid MQTT settings
+        "502":
+          description: Settings were saved, but initial MQTT push failed
+
+  /api/mqtt/push:
+    post:
+      tags: [MQTT]
+      summary: Trigger manual MQTT push
+      description: |
+        Publishes the current vehicle and charging snapshot to MQTT immediately.
+        Requires MQTT integration to be enabled.
+      operationId: pushMqttSnapshot
+      responses:
+        "200":
+          description: Successfully pushed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: MQTT is disabled or invalid request
+        "502":
+          description: MQTT publish failed
 
 components:
   schemas:
@@ -308,3 +379,71 @@ components:
         ok:
           type: boolean
           example: true
+
+    MqttConfigRequest:
+      type: object
+      description: MQTT broker settings for local push
+      properties:
+        enabled:
+          type: boolean
+          description: Enables/disables MQTT push integration
+          example: true
+        brokerUrl:
+          type: string
+          description: Broker URL including protocol (mqtt:// or mqtts://)
+          example: mqtt://192.168.1.10:1883
+        username:
+          type: string
+          description: MQTT broker username
+          example: homeassistant
+        password:
+          type: string
+          description: MQTT broker password
+          example: supersecret
+        topicPrefix:
+          type: string
+          description: Base topic used for state publishing
+          example: chargeflow
+        discoveryPrefix:
+          type: string
+          description: Home Assistant discovery prefix
+          example: homeassistant
+        clientId:
+          type: string
+          description: Optional MQTT client ID for ChargeFlow
+          example: chargeflow-server
+
+    MqttConfigResponse:
+      type: object
+      description: MQTT configuration response with password state only
+      required:
+        - enabled
+        - brokerUrl
+        - username
+        - passwordSet
+        - topicPrefix
+        - discoveryPrefix
+        - clientId
+      properties:
+        enabled:
+          type: boolean
+          example: true
+        brokerUrl:
+          type: string
+          example: mqtt://192.168.1.10:1883
+        username:
+          type: string
+          example: homeassistant
+        passwordSet:
+          type: boolean
+          description: Indicates whether a password is stored
+          example: true
+        topicPrefix:
+          type: string
+          example: chargeflow
+        discoveryPrefix:
+          type: string
+          example: homeassistant
+        clientId:
+          type: string
+          example: chargeflow-server

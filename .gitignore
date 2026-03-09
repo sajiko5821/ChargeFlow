@@ -33,3 +33,4 @@ chargeflow.csv
 
 # Development
 .turbo/
+.local
