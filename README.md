@@ -34,7 +34,7 @@
 - 🌍 **Multi-language** — German & English with browser auto-detection
 - 📄 **CSV export** — automatic backup of all data to a CSV file
 - 📡 **Local MQTT push** — publishes API snapshot to Mosquitto/Home Assistant
-- 🐳 **Docker-ready** — standard image + AIO image with Cloudflare Tunnel
+- 🐳 **Docker-ready** — single production image
 - 📱 **Mobile-first** — designed for phones, works everywhere
 
 ---
@@ -75,14 +75,13 @@ The server serves both the API and the built frontend on a single port.
 
 ## Docker
 
-Two images are published to `ghcr.io`:
+Published image on `ghcr.io`:
 
 | Image | Description |
 |-------|-------------|
-| `ghcr.io/sajiko5821/chargeflow` | Standard image |
-| `ghcr.io/sajiko5821/chargeflow-aio` | All-in-one with integrated [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-tunnel/) |
+| `ghcr.io/sajiko5821/chargeflow` | Production image |
 
-### Standard
+### Run
 
 ```bash
 docker run -d \
@@ -90,17 +89,6 @@ docker run -d \
   -v chargeflow-data:/data \
   ghcr.io/sajiko5821/chargeflow
 ```
-
-### All-in-One (with Cloudflare Tunnel)
-
-```bash
-docker run -d \
-  -v chargeflow-data:/data \
-  -e TUNNEL_TOKEN=<your-cloudflare-tunnel-token> \
-  ghcr.io/sajiko5821/chargeflow-aio
-```
-
-No port mapping needed — traffic goes through the tunnel.
 
 ### Environment Variables
 
@@ -117,7 +105,6 @@ No port mapping needed — traffic goes through the tunnel.
 | `MQTT_TOPIC_PREFIX` | `chargeflow` | Base topic for published state |
 | `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant MQTT discovery prefix |
 | `MQTT_CLIENT_ID` | `""` | Optional MQTT client ID |
-| `TUNNEL_TOKEN` | _(none)_ | Optional Cloudflare Tunnel token (AIO image only, pass via `-e TUNNEL_TOKEN=...`) |
 
 If `NODE_ENV` is not set (or set to anything other than `production`), the backend uses development behavior.
 
@@ -238,13 +225,12 @@ ChargeFlow/
 │   ├── types.ts             # Shared TypeScript interfaces
 │   └── index.css            # Tailwind + CSS custom properties
 ├── docker/
-│   └── aio-entrypoint.sh    # AIO image entrypoint
+│   └── entrypoint.sh        # Docker entrypoint
 ├── docs/
 │   └── openapi.yaml         # OpenAPI 3.1 specification
-├── Dockerfile               # Standard Docker image
-├── Dockerfile.aio           # AIO image with cloudflared
+├── Dockerfile               # Docker image
 └── .github/workflows/
-    └── docker-publish.yaml  # CI/CD for both images
+  └── docker-publish.yaml  # CI/CD for Docker image
 ```
 
 ---
@@ -256,7 +242,7 @@ ChargeFlow/
 | Frontend | React 19, TypeScript 5.9, Tailwind CSS 4, Lucide Icons |
 | Backend | Express 5, better-sqlite3 (WAL mode) |
 | Build | Vite 7, tsx |
-| Deployment | Docker (Node 22 Alpine), GitHub Actions, Cloudflare Tunnel |
+| Deployment | Docker (Node 22 Alpine), GitHub Actions |
 
 ---
 

@@ -89,8 +89,7 @@ docs/openapi.yaml        → OpenAPI 3.1 spec for all API endpoints
 - Base image: `node:22-alpine`
 - Port: `7920`
 - Volume: `/data` for `chargeflow.db` and `chargeflow.csv`
-- AIO variant adds `cloudflared` binary and custom entrypoint
-- CI/CD in `.github/workflows/docker-publish.yaml` — matrix build for both images, QEMU multi-arch (amd64 + arm64)
+- CI/CD in `.github/workflows/docker-publish.yaml` — multi-arch build (amd64 + arm64)
 
 ## Common Tasks
 
