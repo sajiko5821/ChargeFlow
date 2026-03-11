@@ -37,6 +37,18 @@ export interface Translations {
     cancel: string;
     save: string;
     errorSavingCar: string;
+    chargerDeals: string;
+    noDealsYet: string;
+    addDeal: string;
+    editDeal: string;
+    deleteDeal: string;
+    dealName: string;
+    dealNamePlaceholder: string;
+    chargeType: string;
+    chargeTypeAc: string;
+    chargeTypeDc: string;
+    chargeTypeBoth: string;
+    errorSavingDeal: string;
 
     // ChargingTab
     total: string;
@@ -50,6 +62,12 @@ export interface Translations {
     chargedPlaceholder: string;
     pricePerKWh: string;
     pricePerKWhPlaceholder: string;
+    chargerDeal: string;
+    noDealSelected: string;
+    customCostPerKWh: string;
+    customCostPerKWhPlaceholder: string;
+    customOverridesDeal: string;
+    dealLabel: string;
     cost: string;
     noteOptional: string;
     notePlaceholder: string;
@@ -126,6 +144,18 @@ const de: Translations = {
     cancel: 'Abbrechen',
     save: 'Speichern',
     errorSavingCar: 'Fehler beim Speichern der Fahrzeugdaten.',
+    chargerDeals: 'Ladedeals',
+    noDealsYet: 'Noch keine Ladedeals gespeichert.',
+    addDeal: 'Deal hinzufügen',
+    editDeal: 'Deal bearbeiten',
+    deleteDeal: 'Deal löschen',
+    dealName: 'Anbieter',
+    dealNamePlaceholder: 'z.B. IONITY',
+    chargeType: 'Ladetyp',
+    chargeTypeAc: 'AC',
+    chargeTypeDc: 'DC',
+    chargeTypeBoth: 'AC/DC',
+    errorSavingDeal: 'Fehler beim Speichern des Ladedeals.',
 
     total: 'Gesamt',
     charges: 'Ladungen',
@@ -138,6 +168,12 @@ const de: Translations = {
     chargedPlaceholder: 'z.B. 45.3',
     pricePerKWh: 'Preis (€/kWh)',
     pricePerKWhPlaceholder: 'z.B. 0.39',
+    chargerDeal: 'Ladedeal',
+    noDealSelected: 'Kein Deal ausgewählt',
+    customCostPerKWh: 'Preis (€/kWh)',
+    customCostPerKWhPlaceholder: 'z.B. 0.42',
+    customOverridesDeal: 'Eigener Preis überschreibt den Deal-Preis.',
+    dealLabel: 'Deal',
     cost: 'Kosten',
     noteOptional: 'Notiz (optional)',
     notePlaceholder: 'z.B. IONITY Autobahn A3',
@@ -212,6 +248,18 @@ const en: Translations = {
     cancel: 'Cancel',
     save: 'Save',
     errorSavingCar: 'Failed to save vehicle data.',
+    chargerDeals: 'Charger Deals',
+    noDealsYet: 'No charger deals saved yet.',
+    addDeal: 'Add deal',
+    editDeal: 'Edit deal',
+    deleteDeal: 'Delete deal',
+    dealName: 'Deal name',
+    dealNamePlaceholder: 'e.g. IONITY',
+    chargeType: 'Charge type',
+    chargeTypeAc: 'AC',
+    chargeTypeDc: 'DC',
+    chargeTypeBoth: 'AC/DC',
+    errorSavingDeal: 'Failed to save charger deal.',
 
     total: 'Total',
     charges: 'charges',
@@ -224,6 +272,12 @@ const en: Translations = {
     chargedPlaceholder: 'e.g. 45.3',
     pricePerKWh: 'Price (€/kWh)',
     pricePerKWhPlaceholder: 'e.g. 0.39',
+    chargerDeal: 'Charger deal',
+    noDealSelected: 'No deal selected',
+    customCostPerKWh: 'Cost (€/kWh)',
+    customCostPerKWhPlaceholder: 'e.g. 0.42',
+    customOverridesDeal: 'Custom price overrides the deal price.',
+    dealLabel: 'Deal',
     cost: 'Cost',
     noteOptional: 'Note (optional)',
     notePlaceholder: 'e.g. IONITY Highway A3',

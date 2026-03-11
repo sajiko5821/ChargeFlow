@@ -8,25 +8,26 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import type { ChargingSession } from '../types';
+import type { ChargerDeal, ChargingSession } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 
 interface ChargingTabProps {
     sessions: ChargingSession[];
+    deals: ChargerDeal[];
     onAddSession: (session: ChargingSession) => Promise<void>;
     onUpdateSession: (session: ChargingSession) => Promise<void>;
     onDeleteSession: (id: string) => Promise<void>;
 }
 
-export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteSession }: ChargingTabProps) {
+export function ChargingTab({ sessions, deals, onAddSession, onUpdateSession, onDeleteSession }: ChargingTabProps) {
     const [showForm, setShowForm] = useState(false);
     const [kWh, setKWh] = useState('');
-    const [pricePerKWh, setPricePerKWh] = useState('');
+    const [dealOrCustomInput, setDealOrCustomInput] = useState('');
     const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
     const [note, setNote] = useState('');
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
     const [editKWh, setEditKWh] = useState('');
-    const [editPricePerKWh, setEditPricePerKWh] = useState('');
+    const [editDealOrCustomInput, setEditDealOrCustomInput] = useState('');
     const [editDate, setEditDate] = useState('');
     const [editNote, setEditNote] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -39,6 +40,30 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
 
     const formatDate = (isoDate: string): string =>
         new Date(isoDate).toLocaleDateString(localeTag, { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const normalizedDealOrCustomInput = dealOrCustomInput.trim().toLowerCase();
+    const selectedDeal = useMemo(
+        () => deals.find((deal) => deal.name.trim().toLowerCase() === normalizedDealOrCustomInput),
+        [deals, normalizedDealOrCustomInput],
+    );
+    const parsedCustomPrice = parseFloat(dealOrCustomInput.replace(',', '.'));
+    const hasCustomPrice = Number.isFinite(parsedCustomPrice) && parsedCustomPrice > 0;
+    const effectivePricePerKWh = hasCustomPrice
+        ? parsedCustomPrice
+        : selectedDeal?.pricePerKWh;
+    const priceSource = hasCustomPrice ? 'custom' : (selectedDeal ? 'deal' : undefined);
+
+    const normalizedEditDealOrCustomInput = editDealOrCustomInput.trim().toLowerCase();
+    const selectedEditDeal = useMemo(
+        () => deals.find((deal) => deal.name.trim().toLowerCase() === normalizedEditDealOrCustomInput),
+        [deals, normalizedEditDealOrCustomInput],
+    );
+    const parsedEditCustomPrice = parseFloat(editDealOrCustomInput.replace(',', '.'));
+    const hasEditCustomPrice = Number.isFinite(parsedEditCustomPrice) && parsedEditCustomPrice > 0;
+    const effectiveEditPricePerKWh = hasEditCustomPrice
+        ? parsedEditCustomPrice
+        : selectedEditDeal?.pricePerKWh;
+    const editPriceSource = hasEditCustomPrice ? 'custom' : (selectedEditDeal ? 'deal' : undefined);
 
     // Current month stats
     const now = new Date();
@@ -57,7 +82,7 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
 
     const handleAddSession = async () => {
         const kWhNum = parseFloat(kWh);
-        const priceNum = parseFloat(pricePerKWh);
+        const priceNum = effectivePricePerKWh ?? NaN;
         if (isNaN(kWhNum) || isNaN(priceNum) || kWhNum <= 0 || priceNum <= 0) return;
 
         const totalCost = Math.round(kWhNum * priceNum * 100) / 100;
@@ -68,13 +93,16 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
             kWhCharged: kWhNum,
             pricePerKWh: priceNum,
             totalCost,
+            chargerDealId: selectedDeal?.id,
+            chargerDealName: selectedDeal?.name,
+            priceSource,
             note: note.trim() || undefined,
         };
 
         try {
             await onAddSession(newSession);
             setKWh('');
-            setPricePerKWh('');
+            setDealOrCustomInput('');
             setDate(new Date().toISOString().slice(0, 10));
             setNote('');
             setShowForm(false);
@@ -100,7 +128,7 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
         setEditingSessionId(session.id);
         setEditDate(session.date);
         setEditKWh(String(session.kWhCharged));
-        setEditPricePerKWh(String(session.pricePerKWh));
+        setEditDealOrCustomInput(session.chargerDealName ?? String(session.pricePerKWh));
         setEditNote(session.note ?? '');
         setDeleteConfirm(null);
     };
@@ -109,13 +137,13 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
         setEditingSessionId(null);
         setEditDate('');
         setEditKWh('');
-        setEditPricePerKWh('');
+        setEditDealOrCustomInput('');
         setEditNote('');
     };
 
     const handleUpdateSession = async (id: string) => {
         const kWhNum = parseFloat(editKWh);
-        const priceNum = parseFloat(editPricePerKWh);
+        const priceNum = effectiveEditPricePerKWh ?? NaN;
         if (isNaN(kWhNum) || isNaN(priceNum) || kWhNum <= 0 || priceNum <= 0 || !editDate) return;
 
         const updatedSession: ChargingSession = {
@@ -124,6 +152,9 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
             kWhCharged: kWhNum,
             pricePerKWh: priceNum,
             totalCost: Math.round(kWhNum * priceNum * 100) / 100,
+            chargerDealId: selectedEditDeal?.id,
+            chargerDealName: selectedEditDeal?.name,
+            priceSource: editPriceSource,
             note: editNote.trim() || undefined,
         };
 
@@ -209,25 +240,33 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
-                                {t.pricePerKWh}
+                                {t.chargerDeal} / {t.customCostPerKWh}
                             </label>
                             <input
-                                type="number"
-                                inputMode="decimal"
-                                value={pricePerKWh}
-                                onChange={(e) => setPricePerKWh(e.target.value)}
-                                placeholder={t.pricePerKWhPlaceholder}
-                                step="0.01"
+                                type="text"
+                                list="deal-or-custom-options"
+                                value={dealOrCustomInput}
+                                onChange={(e) => setDealOrCustomInput(e.target.value)}
+                                placeholder={t.customCostPerKWhPlaceholder}
                                 className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
                             />
+                            <datalist id="deal-or-custom-options">
+                                {deals.map((deal) => (
+                                    <option
+                                        key={deal.id}
+                                        value={deal.name}
+                                        label={`${deal.pricePerKWh.toFixed(2)} €/kWh · ${deal.chargeType.toUpperCase()}`}
+                                    />
+                                ))}
+                            </datalist>
                         </div>
                     </div>
 
-                    {kWh && pricePerKWh && (
+                    {kWh && effectivePricePerKWh && (
                         <div className="bg-[var(--color-highlight)] rounded-xl p-3 text-center">
                             <span className="text-sm text-[var(--color-text-muted)]">{t.cost}: </span>
                             <span className="font-bold text-[var(--color-primary)]">
-                                {formatCurrency((parseFloat(kWh) || 0) * (parseFloat(pricePerKWh) || 0))}
+                                {formatCurrency((parseFloat(kWh) || 0) * (effectivePricePerKWh || 0))}
                             </span>
                         </div>
                     )}
@@ -247,7 +286,7 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
 
                     <button
                         onClick={handleAddSession}
-                        disabled={!kWh || !pricePerKWh || parseFloat(kWh) <= 0 || parseFloat(pricePerKWh) <= 0}
+                        disabled={!kWh || !effectivePricePerKWh || parseFloat(kWh) <= 0 || effectivePricePerKWh <= 0}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--color-accent)] text-white font-medium disabled:opacity-40 active:scale-95 transition-transform"
                     >
                         <Zap size={18} />
@@ -295,17 +334,25 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
-                                                {t.pricePerKWh}
+                                                {t.chargerDeal} / {t.customCostPerKWh}
                                             </label>
                                             <input
-                                                type="number"
-                                                inputMode="decimal"
-                                                value={editPricePerKWh}
-                                                onChange={(e) => setEditPricePerKWh(e.target.value)}
-                                                placeholder={t.pricePerKWhPlaceholder}
-                                                step="0.01"
+                                                type="text"
+                                                list="edit-deal-or-custom-options"
+                                                value={editDealOrCustomInput}
+                                                onChange={(e) => setEditDealOrCustomInput(e.target.value)}
+                                                placeholder={t.customCostPerKWhPlaceholder}
                                                 className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
                                             />
+                                            <datalist id="edit-deal-or-custom-options">
+                                                {deals.map((deal) => (
+                                                    <option
+                                                        key={deal.id}
+                                                        value={deal.name}
+                                                        label={`${deal.pricePerKWh.toFixed(2)} €/kWh · ${deal.chargeType.toUpperCase()}`}
+                                                    />
+                                                ))}
+                                            </datalist>
                                         </div>
                                     </div>
 
@@ -331,7 +378,7 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
                                         </button>
                                         <button
                                             onClick={() => handleUpdateSession(session.id)}
-                                            disabled={!editDate || !editKWh || !editPricePerKWh || parseFloat(editKWh) <= 0 || parseFloat(editPricePerKWh) <= 0}
+                                            disabled={!editDate || !editKWh || !effectiveEditPricePerKWh || parseFloat(editKWh) <= 0 || effectiveEditPricePerKWh <= 0}
                                             className="flex-1 py-2.5 rounded-xl bg-[var(--color-primary)] text-white font-medium disabled:opacity-40 active:scale-95 transition-transform"
                                         >
                                             {t.save}
@@ -349,6 +396,7 @@ export function ChargingTab({ sessions, onAddSession, onUpdateSession, onDeleteS
                                         </div>
                                         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                                             {session.pricePerKWh.toFixed(2)} €/kWh
+                                            {session.chargerDealName && ` · ${t.dealLabel}: ${session.chargerDealName}`}
                                             {session.note && ` · ${session.note}`}
                                         </p>
                                     </div>
