@@ -73,7 +73,7 @@ export function CarTab({ carData, deals, onSave, onAddDeal, onUpdateDeal, onDele
     };
 
     const handleSaveDeal = async () => {
-        const parsedPrice = parseFloat(dealPricePerKWh);
+        const parsedPrice = parseFloat(dealPricePerKWh.replace(/,/g, '.'));
         if (!dealName.trim() || !parsedPrice || parsedPrice <= 0) {
             return;
         }
