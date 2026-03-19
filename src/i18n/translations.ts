@@ -63,8 +63,10 @@ export interface Translations {
     pricePerKWh: string;
     pricePerKWhPlaceholder: string;
     chargerDeal: string;
+    noDealSelected: string;
     customCostPerKWh: string;
     customCostPerKWhPlaceholder: string;
+    customOverridesDeal: string;
     dealLabel: string;
     cost: string;
     noteOptional: string;
