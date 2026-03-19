@@ -355,7 +355,15 @@ export function ChargingTab({ sessions, deals, onAddSession, onUpdateSession, on
                                                     <option
                                                         key={deal.id}
                                                         value={deal.name}
-                                                        label={`${deal.pricePerKWh.toFixed(2)} €/kWh · ${deal.chargeType.toUpperCase()}`}
+                                                        label={`${deal.pricePerKWh.toFixed(2)} €/kWh · ${
+                                                            (() => {
+                                                                const type = deal.chargeType.toLowerCase();
+                                                                if (type === 'ac') return t.chargeTypeAc;
+                                                                if (type === 'dc') return t.chargeTypeDc;
+                                                                if (type === 'both') return t.chargeTypeBoth;
+                                                                return deal.chargeType.toUpperCase();
+                                                            })()
+                                                        }`}
                                                     />
                                                 ))}
                                             </datalist>
