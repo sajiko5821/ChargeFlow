@@ -831,9 +831,18 @@ app.put('/api/deals/:id', ...mutationMiddleware, async (req, res) => {
 
 app.delete('/api/deals/:id', ...mutationMiddleware, async (req, res) => {
     const { id } = req.params;
-    db.prepare('UPDATE charging_session SET charger_deal_id = NULL WHERE charger_deal_id = ?').run(id);
-    db.prepare('DELETE FROM charger_deal WHERE id = ?').run(id);
+    if (typeof id !== 'string' || id.trim().length === 0 || id.length > 200) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
 
+    db.prepare('UPDATE charging_session SET charger_deal_id = NULL WHERE charger_deal_id = ?').run(id);
+    const deleteResult = db.prepare('DELETE FROM charger_deal WHERE id = ?').run(id);
+
+    if (deleteResult.changes === 0) {
+        res.status(404).json({ error: 'Deal not found' });
+        return;
+    }
     await syncExternalTargets();
     res.json({ ok: true });
 });
