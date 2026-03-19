@@ -122,7 +122,10 @@ db.prepare(`
 
 // ── Middleware ──
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+// Trust X-Forwarded-Proto only from loopback (127.0.0.1/::1) and private-network
+// addresses (RFC-1918 / ULA). This covers any standard nginx reverse-proxy deployment
+// while preventing external clients from spoofing the header to manipulate the CSP.
+app.set('trust proxy', ['loopback', 'uniquelocal']);
 app.use(
     helmet({
         contentSecurityPolicy: {
@@ -148,8 +151,9 @@ app.use(
     })
 );
 // Append upgrade-insecure-requests only when the connection is HTTPS.
-// req.protocol honours the X-Forwarded-Proto header set by nginx (trust proxy is on),
-// so this works correctly both for direct TLS and for HTTPS-terminated reverse proxies.
+// Because trust proxy is restricted to loopback/private-network addresses,
+// req.protocol can only be 'https' when X-Forwarded-Proto is set by a real
+// local proxy — external clients cannot spoof it.
 app.use((req, res, next) => {
     if (req.protocol === 'https') {
         const csp = res.getHeader('Content-Security-Policy');
