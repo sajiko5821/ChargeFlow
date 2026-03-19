@@ -136,11 +136,29 @@ app.use(
                 baseUri: ["'self'"],
                 frameAncestors: ["'none'"],
                 formAction: ["'self'"],
+                // Omit upgrade-insecure-requests from the static helmet config; it is
+                // added dynamically below only when the request arrives over HTTPS.
+                // Without this, helmet's default injects the directive unconditionally,
+                // which causes browsers to reload JS/CSS assets over HTTPS even when the
+                // server is accessed over plain HTTP — resulting in a blank white page.
+                upgradeInsecureRequests: null,
             },
         },
         crossOriginEmbedderPolicy: false,
     })
 );
+// Append upgrade-insecure-requests only when the connection is HTTPS.
+// req.protocol honours the X-Forwarded-Proto header set by nginx (trust proxy is on),
+// so this works correctly both for direct TLS and for HTTPS-terminated reverse proxies.
+app.use((req, res, next) => {
+    if (req.protocol === 'https') {
+        const csp = res.getHeader('Content-Security-Policy');
+        if (typeof csp === 'string') {
+            res.setHeader('Content-Security-Policy', `${csp}; upgrade-insecure-requests`);
+        }
+    }
+    next();
+});
 app.use(express.json({ limit: '100kb' }));
 
 const mutationLimiter = rateLimit({
