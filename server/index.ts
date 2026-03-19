@@ -6,6 +6,7 @@ import mqtt, { type IClientOptions, type MqttClient } from 'mqtt';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -36,7 +37,17 @@ interface ChargingSession {
     kWhCharged: number;
     pricePerKWh: number;
     totalCost: number;
+    chargerDealId?: string;
+    chargerDealName?: string;
+    priceSource?: 'deal' | 'custom';
     note?: string;
+}
+
+interface ChargerDeal {
+    id: string;
+    name: string;
+    pricePerKWh: number;
+    chargeType: 'ac' | 'dc' | 'both';
 }
 
 interface MqttConfig {
@@ -85,9 +96,29 @@ db.exec(`
     kwh_charged REAL NOT NULL,
     price_per_kwh REAL NOT NULL,
     total_cost REAL NOT NULL,
+        charger_deal_id TEXT,
+        price_source TEXT,
     note TEXT
   );
 `);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS charger_deal (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        price_per_kwh REAL NOT NULL,
+        charge_type TEXT NOT NULL
+    );
+`);
+
+const sessionColumns = db.prepare(`PRAGMA table_info(charging_session)`).all() as Array<Record<string, unknown>>;
+const sessionColumnNames = new Set(sessionColumns.map((column) => String(column.name)));
+if (!sessionColumnNames.has('charger_deal_id')) {
+    db.exec('ALTER TABLE charging_session ADD COLUMN charger_deal_id TEXT');
+}
+if (!sessionColumnNames.has('price_source')) {
+    db.exec('ALTER TABLE charging_session ADD COLUMN price_source TEXT');
+}
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_session_date ON charging_session(date DESC);
@@ -197,7 +228,22 @@ function syncCsv(): void {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
         const car = db.prepare('SELECT name, battery_capacity_kwh, max_dc_charging_kw, max_ac_charging_kw FROM car WHERE id = 1').get() as Record<string, unknown> | undefined;
-        const sessions = db.prepare('SELECT id, date, kwh_charged, price_per_kwh, total_cost, note FROM charging_session ORDER BY date DESC').all() as Record<string, unknown>[];
+        const sessions = db.prepare(`
+            SELECT
+                s.id,
+                s.date,
+                s.kwh_charged,
+                s.price_per_kwh,
+                s.total_cost,
+                s.price_source,
+                s.note,
+                d.name AS charger_deal_name,
+                d.charge_type AS charger_deal_charge_type
+            FROM charging_session s
+            LEFT JOIN charger_deal d ON d.id = s.charger_deal_id
+            ORDER BY s.date DESC
+        `).all() as Record<string, unknown>[];
+        const deals = db.prepare('SELECT id, name, price_per_kwh, charge_type FROM charger_deal ORDER BY name COLLATE NOCASE ASC').all() as Record<string, unknown>[];
 
         const lines: string[] = [];
 
@@ -215,14 +261,30 @@ function syncCsv(): void {
 
         lines.push('');
 
+        // Section: Charger deals
+        lines.push('# Charger Deals');
+        lines.push('Name,Price/kWh (EUR),Charge Type');
+        for (const deal of deals) {
+            lines.push([
+                escapeCsvField(String(deal.name)),
+                String(deal.price_per_kwh),
+                escapeCsvField(String(deal.charge_type)),
+            ].join(','));
+        }
+
+        lines.push('');
+
         // Section: Charging sessions
         lines.push('# Charging Sessions');
-        lines.push('Date,kWh,Price/kWh (EUR),Total Cost (EUR),Note');
+        lines.push('Date,kWh,Price/kWh (EUR),Price Source,Deal Name,Deal Type,Total Cost (EUR),Note');
         for (const s of sessions) {
             lines.push([
                 escapeCsvField(String(s.date)),
                 String(s.kwh_charged),
                 String(s.price_per_kwh),
+                escapeCsvField(String(s.price_source ?? '')),
+                escapeCsvField(String(s.charger_deal_name ?? '')),
+                escapeCsvField(String(s.charger_deal_charge_type ?? '')),
                 String(s.total_cost),
                 escapeCsvField(String(s.note ?? '')),
             ].join(','));
@@ -277,14 +339,45 @@ function getCarData(): CarData {
 }
 
 function getSessionsData(): ChargingSession[] {
-    const rows = db.prepare('SELECT id, date, kwh_charged, price_per_kwh, total_cost, note FROM charging_session ORDER BY date DESC').all() as Record<string, unknown>[];
+    const rows = db.prepare(`
+        SELECT
+            s.id,
+            s.date,
+            s.kwh_charged,
+            s.price_per_kwh,
+            s.total_cost,
+            s.price_source,
+            s.note,
+            s.charger_deal_id,
+            d.name AS charger_deal_name
+        FROM charging_session s
+        LEFT JOIN charger_deal d ON d.id = s.charger_deal_id
+        ORDER BY s.date DESC
+    `).all() as Record<string, unknown>[];
     return rows.map((row) => ({
         id: String(row.id),
         date: String(row.date),
         kWhCharged: Number(row.kwh_charged),
         pricePerKWh: Number(row.price_per_kwh),
         totalCost: Number(row.total_cost),
+        chargerDealId: row.charger_deal_id ? String(row.charger_deal_id) : undefined,
+        chargerDealName: row.charger_deal_name ? String(row.charger_deal_name) : undefined,
+        priceSource: row.price_source === 'deal' || row.price_source === 'custom'
+            ? row.price_source
+            : undefined,
         note: row.note ? String(row.note) : undefined,
+    }));
+}
+
+function getDealsData(): ChargerDeal[] {
+    const rows = db.prepare('SELECT id, name, price_per_kwh, charge_type FROM charger_deal ORDER BY name COLLATE NOCASE ASC').all() as Record<string, unknown>[];
+    return rows.map((row) => ({
+        id: String(row.id),
+        name: String(row.name),
+        pricePerKWh: Number(row.price_per_kwh),
+        chargeType: row.charge_type === 'ac' || row.charge_type === 'dc' || row.charge_type === 'both'
+            ? row.charge_type
+            : 'both',
     }));
 }
 
@@ -323,7 +416,7 @@ function normalizeTopicSegment(input: string): string {
 
 function buildMqttDeviceId(carName: string): string {
     const slug = normalizeTopicSegment(carName || 'car');
-    return `chargeflow_${slug.replace(/[\-/]/g, '_')}`;
+    return `chargeflow_${slug.replace(/[-/]/g, '_')}`;
 }
 
 function getMqttClientConfigKey(config: MqttConfig): string {
@@ -552,6 +645,7 @@ async function pushMqttSnapshot(): Promise<void> {
 
     const car = getCarData();
     const sessions = getSessionsData();
+    const deals = getDealsData();
     const deviceName = car.name.trim() || 'ChargeFlow Car';
     const deviceId = buildMqttDeviceId(deviceName);
     const topicPrefix = normalizeTopicSegment(config.topicPrefix);
@@ -588,6 +682,7 @@ async function pushMqttSnapshot(): Promise<void> {
     const statePayload = JSON.stringify({
         updatedAt: new Date().toISOString(),
         car,
+        deals,
         sessions,
         statistics: {
             sessionCount,
@@ -686,14 +781,104 @@ app.put('/api/car', ...mutationMiddleware, async (req, res) => {
 
 // ── Session Routes ──
 
+function validateDealFields(input: {
+    name: unknown;
+    pricePerKWh: unknown;
+    chargeType: unknown;
+}): string | null {
+    const { name, pricePerKWh, chargeType } = input;
+
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 200) {
+        return 'Invalid name (string, 1-200 chars)';
+    }
+    if (typeof pricePerKWh !== 'number' || !isFinite(pricePerKWh) || pricePerKWh <= 0 || pricePerKWh > 100) {
+        return 'Invalid pricePerKWh (must be > 0 and <= 100)';
+    }
+    if (chargeType !== 'ac' && chargeType !== 'dc' && chargeType !== 'both') {
+        return 'Invalid chargeType (must be ac, dc or both)';
+    }
+
+    return null;
+}
+
+app.get('/api/deals', (_req, res) => {
+    res.json(getDealsData());
+});
+
+app.post('/api/deals', ...mutationMiddleware, async (req, res) => {
+    const { name, pricePerKWh, chargeType } = req.body;
+    const validationError = validateDealFields({ name, pricePerKWh, chargeType });
+    if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+    }
+
+    db.prepare(`
+        INSERT INTO charger_deal (id, name, price_per_kwh, charge_type)
+        VALUES (?, ?, ?, ?)
+    `).run(randomUUID(), name.trim(), pricePerKWh, chargeType);
+
+    await syncExternalTargets();
+    res.json({ ok: true });
+});
+
+app.put('/api/deals/:id', ...mutationMiddleware, async (req, res) => {
+    const { id } = req.params;
+    if (typeof id !== 'string' || id.trim().length === 0 || id.length > 200) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+
+    const { name, pricePerKWh, chargeType } = req.body;
+    const validationError = validateDealFields({ name, pricePerKWh, chargeType });
+    if (validationError) {
+        res.status(400).json({ error: validationError });
+        return;
+    }
+
+    const result = db.prepare(`
+        UPDATE charger_deal
+        SET name = ?, price_per_kwh = ?, charge_type = ?
+        WHERE id = ?
+    `).run(name.trim(), pricePerKWh, chargeType, id);
+
+    if (result.changes === 0) {
+        res.status(404).json({ error: 'Deal not found' });
+        return;
+    }
+
+    await syncExternalTargets();
+    res.json({ ok: true });
+});
+
+app.delete('/api/deals/:id', ...mutationMiddleware, async (req, res) => {
+    const { id } = req.params;
+    if (typeof id !== 'string' || id.trim().length === 0 || id.length > 200) {
+        res.status(400).json({ error: 'Invalid id' });
+        return;
+    }
+
+    db.prepare('UPDATE charging_session SET charger_deal_id = NULL WHERE charger_deal_id = ?').run(id);
+    const deleteResult = db.prepare('DELETE FROM charger_deal WHERE id = ?').run(id);
+
+    if (deleteResult.changes === 0) {
+        res.status(404).json({ error: 'Deal not found' });
+        return;
+    }
+    await syncExternalTargets();
+    res.json({ ok: true });
+});
+
 function validateSessionFields(input: {
     date: unknown;
     kWhCharged: unknown;
     pricePerKWh: unknown;
     totalCost: unknown;
+    chargerDealId: unknown;
+    priceSource: unknown;
     note: unknown;
 }): string | null {
-    const { date, kWhCharged, pricePerKWh, totalCost, note } = input;
+    const { date, kWhCharged, pricePerKWh, totalCost, chargerDealId, priceSource, note } = input;
 
     if (typeof date !== 'string' || !DATE_REGEX.test(date) || isNaN(Date.parse(date))) {
         return 'Invalid date (YYYY-MM-DD format required)';
@@ -710,6 +895,12 @@ function validateSessionFields(input: {
     if (note !== undefined && note !== null && (typeof note !== 'string' || note.length > 500)) {
         return 'Invalid note (max 500 chars)';
     }
+    if (chargerDealId !== undefined && chargerDealId !== null && (typeof chargerDealId !== 'string' || chargerDealId.length > 200)) {
+        return 'Invalid chargerDealId';
+    }
+    if (priceSource !== undefined && priceSource !== null && priceSource !== 'deal' && priceSource !== 'custom') {
+        return 'Invalid priceSource (must be deal or custom)';
+    }
 
     return null;
 }
@@ -719,7 +910,7 @@ app.get('/api/sessions', (_req, res) => {
 });
 
 app.post('/api/sessions', ...mutationMiddleware, async (req, res) => {
-    const { id, date, kWhCharged, pricePerKWh, totalCost, note } = req.body;
+    const { id, date, kWhCharged, pricePerKWh, totalCost, chargerDealId, priceSource, note } = req.body;
 
     // Input validation
     if (typeof id !== 'string' || !UUID_REGEX.test(id)) {
@@ -727,40 +918,60 @@ app.post('/api/sessions', ...mutationMiddleware, async (req, res) => {
         return;
     }
 
-    const sessionFieldsError = validateSessionFields({ date, kWhCharged, pricePerKWh, totalCost, note });
+    const sessionFieldsError = validateSessionFields({ date, kWhCharged, pricePerKWh, totalCost, chargerDealId, priceSource, note });
     if (sessionFieldsError) {
         res.status(400).json({ error: sessionFieldsError });
         return;
     }
 
+    let persistedDealId: string | null = null;
+    if (typeof chargerDealId === 'string' && chargerDealId.trim().length > 0) {
+        const dealExists = db.prepare('SELECT 1 FROM charger_deal WHERE id = ?').get(chargerDealId.trim()) as Record<string, unknown> | undefined;
+        if (!dealExists) {
+            res.status(400).json({ error: 'Selected charger deal does not exist' });
+            return;
+        }
+        persistedDealId = chargerDealId.trim();
+    }
+
     db.prepare(`
-    INSERT INTO charging_session (id, date, kwh_charged, price_per_kwh, total_cost, note)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, date, kWhCharged, pricePerKWh, totalCost, note ?? null);
+    INSERT INTO charging_session (id, date, kwh_charged, price_per_kwh, total_cost, charger_deal_id, price_source, note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, date, kWhCharged, pricePerKWh, totalCost, persistedDealId, priceSource ?? null, note ?? null);
     await syncExternalTargets();
     res.json({ ok: true });
 });
 
 app.put('/api/sessions/:id', ...mutationMiddleware, async (req, res) => {
     const { id } = req.params;
-    const { date, kWhCharged, pricePerKWh, totalCost, note } = req.body;
+    const { date, kWhCharged, pricePerKWh, totalCost, chargerDealId, priceSource, note } = req.body;
 
     if (typeof id !== 'string' || id.trim().length === 0 || id.length > 200) {
         res.status(400).json({ error: 'Invalid id' });
         return;
     }
 
-    const sessionFieldsError = validateSessionFields({ date, kWhCharged, pricePerKWh, totalCost, note });
+    const sessionFieldsError = validateSessionFields({ date, kWhCharged, pricePerKWh, totalCost, chargerDealId, priceSource, note });
     if (sessionFieldsError) {
         res.status(400).json({ error: sessionFieldsError });
         return;
     }
 
+    let persistedDealId: string | null = null;
+    if (typeof chargerDealId === 'string' && chargerDealId.trim().length > 0) {
+        const dealExists = db.prepare('SELECT 1 FROM charger_deal WHERE id = ?').get(chargerDealId.trim()) as Record<string, unknown> | undefined;
+        if (!dealExists) {
+            res.status(400).json({ error: 'Selected charger deal does not exist' });
+            return;
+        }
+        persistedDealId = chargerDealId.trim();
+    }
+
     const result = db.prepare(`
     UPDATE charging_session
-    SET date = ?, kwh_charged = ?, price_per_kwh = ?, total_cost = ?, note = ?
+    SET date = ?, kwh_charged = ?, price_per_kwh = ?, total_cost = ?, charger_deal_id = ?, price_source = ?, note = ?
     WHERE id = ?
-  `).run(date, kWhCharged, pricePerKWh, totalCost, note ?? null, id);
+  `).run(date, kWhCharged, pricePerKWh, totalCost, persistedDealId, priceSource ?? null, note ?? null, id);
 
     if (result.changes === 0) {
         res.status(404).json({ error: 'Session not found' });
@@ -875,6 +1086,10 @@ app.post('/api/mqtt/push', ...mutationMiddleware, async (_req, res) => {
             details: err instanceof Error ? err.message : 'Unknown MQTT error',
         });
     }
+});
+
+app.use('/api/{*path}', (_req, res) => {
+    res.status(404).json({ error: 'API route not found' });
 });
 
 // ── Static Files (production) ──

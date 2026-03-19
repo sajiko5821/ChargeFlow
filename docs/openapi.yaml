@@ -17,6 +17,8 @@ servers:
 tags:
   - name: Car
     description: Vehicle configuration (single vehicle, id = 1)
+  - name: Deals
+    description: Reusable charger deals with price and charge type
   - name: Sessions
     description: Charging session management
   - name: MQTT
@@ -101,6 +103,9 @@ paths:
                   kWhCharged: 42.5
                   pricePerKWh: 0.39
                   totalCost: 16.58
+                  chargerDealId: "f99cd0aa-f89d-4449-84c9-90063396f5f5"
+                  chargerDealName: IONITY
+                  priceSource: deal
                   note: IONITY A3
                 - id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
                   date: "2026-01-15"
@@ -127,6 +132,8 @@ paths:
               kWhCharged: 42.5
               pricePerKWh: 0.39
               totalCost: 16.58
+              chargerDealId: "f99cd0aa-f89d-4449-84c9-90063396f5f5"
+              priceSource: deal
               note: IONITY A3
       responses:
         "200":
@@ -163,6 +170,8 @@ paths:
               kWhCharged: 42.5
               pricePerKWh: 0.39
               totalCost: 16.58
+              chargerDealId: "f99cd0aa-f89d-4449-84c9-90063396f5f5"
+              priceSource: custom
               note: IONITY A3
       responses:
         "200":
@@ -192,6 +201,86 @@ paths:
       responses:
         "200":
           description: Successfully deleted (even if id didn't exist)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /api/deals:
+    get:
+      tags: [Deals]
+      summary: List all charger deals
+      description: Returns all configured charger deals, sorted by name.
+      operationId: listDeals
+      responses:
+        "200":
+          description: Array of charger deals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChargerDeal"
+
+    post:
+      tags: [Deals]
+      summary: Add a charger deal
+      description: Creates a new charger deal used in the charging workflow.
+      operationId: addDeal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChargerDealUpsert"
+      responses:
+        "200":
+          description: Successfully saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /api/deals/{id}:
+    put:
+      tags: [Deals]
+      summary: Update a charger deal
+      operationId: updateDeal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChargerDealUpsert"
+      responses:
+        "200":
+          description: Successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "404":
+          description: Deal not found
+
+    delete:
+      tags: [Deals]
+      summary: Delete a charger deal
+      operationId: deleteDeal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully deleted
           content:
             application/json:
               schema:
@@ -332,6 +421,22 @@ components:
           format: float
           description: Total cost in EUR (kWhCharged × pricePerKWh)
           example: 16.58
+        chargerDealId:
+          type: string
+          nullable: true
+          description: Optional selected charger deal ID
+          example: "f99cd0aa-f89d-4449-84c9-90063396f5f5"
+        chargerDealName:
+          type: string
+          nullable: true
+          description: Resolved charger deal name (read-only convenience field)
+          example: IONITY
+        priceSource:
+          type: string
+          nullable: true
+          enum: [deal, custom]
+          description: Indicates whether effective price came from deal or custom input
+          example: custom
         note:
           type: string
           nullable: true
@@ -367,6 +472,15 @@ components:
           format: float
           description: Total cost in EUR (kWhCharged × pricePerKWh)
           example: 16.58
+        chargerDealId:
+          type: string
+          nullable: true
+          description: Optional selected charger deal ID
+        priceSource:
+          type: string
+          nullable: true
+          enum: [deal, custom]
+          description: Indicates whether effective price came from deal or custom input
         note:
           type: string
           nullable: true
@@ -379,6 +493,48 @@ components:
         ok:
           type: boolean
           example: true
+
+    ChargerDeal:
+      type: object
+      required:
+        - id
+        - name
+        - pricePerKWh
+        - chargeType
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: IONITY
+        pricePerKWh:
+          type: number
+          format: float
+          example: 0.39
+        chargeType:
+          type: string
+          enum: [ac, dc, both]
+          example: both
+
+    ChargerDealUpsert:
+      type: object
+      required:
+        - name
+        - pricePerKWh
+        - chargeType
+      properties:
+        name:
+          type: string
+          example: IONITY
+        pricePerKWh:
+          type: number
+          format: float
+          example: 0.39
+        chargeType:
+          type: string
+          enum: [ac, dc, both]
+          example: both
 
     MqttConfigRequest:
       type: object

@@ -27,6 +27,7 @@
 | **📊 Statistics** | Monthly cost bar chart, average cost/energy per month, and yearly overviews with expandable monthly breakdowns. |
 | **🔢 Calculator** | Estimate charging time and cost based on your vehicle's specs. Toggle between DC and AC, adjust SoC range and electricity price. |
 | **🚗 Car** | Store your vehicle data — battery capacity, max DC/AC charging power. Used by the calculator. |
+| **⚙️ Deals (in Car tab)** | Manage reusable charger deals (name, price/kWh, AC/DC). Use them directly in the charging form or override with a custom price. |
 
 **Additional highlights:**
 
@@ -119,7 +120,7 @@ docker run -d \
   ghcr.io/sajiko5821/chargeflow
 ```
 
-The CSV persists independently of the container and contains vehicle data, all sessions, and monthly summaries.
+The CSV persists independently of the container and contains vehicle data, charger deals, all sessions, and monthly summaries.
 
 ---
 
@@ -135,6 +136,10 @@ The backend exposes a REST API under `/api`. Full specification: [`docs/openapi.
 | `POST` | `/api/sessions` | Add a session |
 | `PUT` | `/api/sessions/:id` | Update a session |
 | `DELETE` | `/api/sessions/:id` | Delete a session |
+| `GET` | `/api/deals` | List charger deals |
+| `POST` | `/api/deals` | Add a charger deal |
+| `PUT` | `/api/deals/:id` | Update a charger deal |
+| `DELETE` | `/api/deals/:id` | Delete a charger deal |
 | `GET` | `/api/mqtt` | Get MQTT configuration (without plain password) |
 | `PUT` | `/api/mqtt` | Save/update MQTT broker configuration |
 | `POST` | `/api/mqtt/push` | Trigger manual MQTT snapshot push |
@@ -194,6 +199,26 @@ curl -X POST http://localhost:7920/api/sessions \
 
 # List sessions
 curl http://localhost:7920/api/sessions
+
+# Create a charger deal
+curl -X POST http://localhost:7920/api/deals \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"IONITY","pricePerKWh":0.39,"chargeType":"dc"}'
+
+# Create a session using deal price
+DEAL_ID="<paste-deal-id>"
+curl -X POST http://localhost:7920/api/sessions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id":"'"$(uuidgen)"'",
+    "date":"2026-03-11",
+    "kWhCharged":30,
+    "pricePerKWh":0.39,
+    "totalCost":11.70,
+    "chargerDealId":"'"$DEAL_ID"'",
+    "priceSource":"deal",
+    "note":"Deal price"
+  }'
 ```
 
 ---

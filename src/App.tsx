@@ -12,7 +12,19 @@ import { Zap, Loader2, Sun, Moon, Languages } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>('charging');
-  const { ready, carData, sessions, saveCar, addSession, updateSession, deleteSession } = useDatabase();
+  const {
+    ready,
+    carData,
+    sessions,
+    deals,
+    saveCar,
+    addSession,
+    updateSession,
+    deleteSession,
+    addDeal,
+    updateDeal,
+    deleteDeal,
+  } = useDatabase();
   const { theme, toggleTheme } = useTheme();
   const { t, locale, setLocale } = useI18n();
 
@@ -58,10 +70,20 @@ function App() {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {activeTab === 'car' && <CarTab carData={carData} onSave={saveCar} />}
+        {activeTab === 'car' && (
+          <CarTab
+            carData={carData}
+            deals={deals}
+            onSave={saveCar}
+            onAddDeal={addDeal}
+            onUpdateDeal={updateDeal}
+            onDeleteDeal={deleteDeal}
+          />
+        )}
         {activeTab === 'charging' && (
           <ChargingTab
             sessions={sessions}
+            deals={deals}
             onAddSession={addSession}
             onUpdateSession={updateSession}
             onDeleteSession={deleteSession}

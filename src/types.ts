@@ -11,7 +11,17 @@ export interface ChargingSession {
     kWhCharged: number;
     pricePerKWh: number; // in EUR cents
     totalCost: number; // in EUR
+    chargerDealId?: string;
+    chargerDealName?: string;
+    priceSource?: 'deal' | 'custom';
     note?: string;
+}
+
+export interface ChargerDeal {
+    id: string;
+    name: string;
+    pricePerKWh: number;
+    chargeType: 'ac' | 'dc' | 'both';
 }
 
 export interface MonthlyOverview {
