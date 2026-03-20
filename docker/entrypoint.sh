@@ -4,6 +4,14 @@
 USER_ID=${PUID:-1000}
 GROUP_ID=${PGID:-1000}
 
+# Validate that USER_ID and GROUP_ID are non-negative integers
+case "$USER_ID" in
+  *[!0-9]*) echo "ERROR: PUID must be a non-negative integer, got: '$USER_ID'" >&2; exit 1 ;;
+esac
+case "$GROUP_ID" in
+  *[!0-9]*) echo "ERROR: PGID must be a non-negative integer, got: '$GROUP_ID'" >&2; exit 1 ;;
+esac
+
 echo "Updating 'app' user to UID: $USER_ID and GID: $GROUP_ID"
 
 # Update the 'app' user and group created in the Dockerfile
