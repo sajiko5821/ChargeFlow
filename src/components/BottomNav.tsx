@@ -1,5 +1,6 @@
 import { Car, Zap, Calculator, BarChart3 } from 'lucide-react';
 import type { TabId } from '../types';
+import { TAB_ORDER } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 
 interface BottomNavProps {
@@ -14,8 +15,6 @@ const tabIcons: Record<TabId, typeof Car> = {
     car: Car,
 };
 
-const tabOrder: TabId[] = ['charging', 'statistics', 'calculator', 'car'];
-
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
     const { t } = useI18n();
 
@@ -29,7 +28,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
     return (
         <nav className="fixed bottom-0 left-0 right-0 bg-[var(--color-card)] border-t border-[var(--color-border)] z-50 safe-area-bottom">
             <div className="flex items-center justify-around max-w-lg mx-auto">
-                {tabOrder.map((id) => {
+                {TAB_ORDER.map((id) => {
                     const isActive = activeTab === id;
                     const Icon = tabIcons[id];
                     return (

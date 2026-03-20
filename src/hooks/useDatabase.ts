@@ -7,8 +7,12 @@ import {
     addSessionAndPersist,
     updateSessionAndPersist,
     deleteSessionAndPersist,
+    getAllDeals,
+    addDealAndPersist,
+    updateDealAndPersist,
+    deleteDealAndPersist,
 } from '../db/database';
-import type { CarData, ChargingSession } from '../types';
+import type { CarData, ChargerDeal, ChargingSession } from '../types';
 
 const DEFAULT_CAR: CarData = {
     name: '',
@@ -21,27 +25,55 @@ interface UseDatabase {
     ready: boolean;
     carData: CarData;
     sessions: ChargingSession[];
+    deals: ChargerDeal[];
     saveCar: (car: CarData) => Promise<void>;
     addSession: (session: ChargingSession) => Promise<void>;
     updateSession: (session: ChargingSession) => Promise<void>;
     deleteSession: (id: string) => Promise<void>;
+    addDeal: (deal: Omit<ChargerDeal, 'id'>) => Promise<void>;
+    updateDeal: (deal: ChargerDeal) => Promise<void>;
+    deleteDeal: (id: string) => Promise<void>;
 }
 
 export function useDatabase(): UseDatabase {
     const [ready, setReady] = useState(false);
     const [carData, setCarData] = useState<CarData>(DEFAULT_CAR);
     const [sessions, setSessions] = useState<ChargingSession[]>([]);
+    const [deals, setDeals] = useState<ChargerDeal[]>([]);
 
     // Initialize DB on mount
     useEffect(() => {
         initDatabase()
             .then(async () => {
-                setCarData(await getCar());
-                setSessions(await getAllSessions());
+                const [carResult, sessionsResult, dealsResult] = await Promise.allSettled([
+                    getCar(),
+                    getAllSessions(),
+                    getAllDeals(),
+                ]);
+
+                if (carResult.status === 'fulfilled') {
+                    setCarData(carResult.value);
+                } else {
+                    console.error('Failed to load car data:', carResult.reason);
+                }
+
+                if (sessionsResult.status === 'fulfilled') {
+                    setSessions(sessionsResult.value);
+                } else {
+                    console.error('Failed to load sessions:', sessionsResult.reason);
+                }
+
+                if (dealsResult.status === 'fulfilled') {
+                    setDeals(dealsResult.value);
+                } else {
+                    console.error('Failed to load deals:', dealsResult.reason);
+                }
+
                 setReady(true);
             })
             .catch((err) => {
                 console.error('Failed to initialize database:', err);
+                setReady(true);
             });
     }, []);
 
@@ -65,13 +97,34 @@ export function useDatabase(): UseDatabase {
         setSessions(await getAllSessions());
     }, []);
 
+    const addDealCb = useCallback(async (deal: Omit<ChargerDeal, 'id'>) => {
+        await addDealAndPersist(deal);
+        setDeals(await getAllDeals());
+    }, []);
+
+    const updateDealCb = useCallback(async (deal: ChargerDeal) => {
+        await updateDealAndPersist(deal);
+        setDeals(await getAllDeals());
+        setSessions(await getAllSessions());
+    }, []);
+
+    const deleteDealCb = useCallback(async (id: string) => {
+        await deleteDealAndPersist(id);
+        setDeals(await getAllDeals());
+        setSessions(await getAllSessions());
+    }, []);
+
     return {
         ready,
         carData,
         sessions,
+        deals,
         saveCar,
         addSession: addSessionCb,
         updateSession: updateSessionCb,
         deleteSession: deleteSessionCb,
+        addDeal: addDealCb,
+        updateDeal: updateDealCb,
+        deleteDeal: deleteDealCb,
     };
 }

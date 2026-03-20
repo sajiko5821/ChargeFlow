@@ -1,4 +1,4 @@
-import type { CarData, ChargingSession } from '../types';
+import type { CarData, ChargerDeal, ChargingSession } from '../types';
 
 const API_BASE = '/api';
 
@@ -45,6 +45,8 @@ export async function updateSessionAndPersist(session: ChargingSession): Promise
             kWhCharged: session.kWhCharged,
             pricePerKWh: session.pricePerKWh,
             totalCost: session.totalCost,
+            chargerDealId: session.chargerDealId,
+            priceSource: session.priceSource,
             note: session.note,
         }),
     });
@@ -56,6 +58,53 @@ export async function deleteSessionAndPersist(id: string): Promise<void> {
         method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete session');
+}
+
+// ── Charger Deals ──
+
+export async function getAllDeals(): Promise<ChargerDeal[]> {
+    const res = await fetch(`${API_BASE}/deals`);
+    if (!res.ok) {
+        if (res.status === 404) return [];
+        throw new Error('Failed to fetch deals');
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+        return [];
+    }
+
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+}
+
+export async function addDealAndPersist(deal: Omit<ChargerDeal, 'id'>): Promise<void> {
+    const res = await fetch(`${API_BASE}/deals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deal),
+    });
+    if (!res.ok) throw new Error('Failed to save deal');
+}
+
+export async function updateDealAndPersist(deal: ChargerDeal): Promise<void> {
+    const res = await fetch(`${API_BASE}/deals/${deal.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: deal.name,
+            pricePerKWh: deal.pricePerKWh,
+            chargeType: deal.chargeType,
+        }),
+    });
+    if (!res.ok) throw new Error('Failed to update deal');
+}
+
+export async function deleteDealAndPersist(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/deals/${id}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete deal');
 }
 
 // ── Init (no-op, kept for compatibility) ──

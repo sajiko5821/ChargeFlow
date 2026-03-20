@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import { Car, Save, Edit3, RotateCcw } from 'lucide-react';
-import type { CarData } from '../types';
+import { Car, Save, Edit3, RotateCcw, Trash2, Plus, Tag } from 'lucide-react';
+import type { CarData, ChargerDeal } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 
 interface CarTabProps {
     carData: CarData;
+    deals: ChargerDeal[];
     onSave: (data: CarData) => void | Promise<void>;
+    onAddDeal: (deal: Omit<ChargerDeal, 'id'>) => Promise<void>;
+    onUpdateDeal: (deal: ChargerDeal) => Promise<void>;
+    onDeleteDeal: (id: string) => Promise<void>;
 }
 
 const DEFAULT_CAR: CarData = {
@@ -15,10 +19,21 @@ const DEFAULT_CAR: CarData = {
     maxACChargingKW: 0,
 };
 
-export function CarTab({ carData, onSave }: CarTabProps) {
+export function CarTab({ carData, deals, onSave, onAddDeal, onUpdateDeal, onDeleteDeal }: CarTabProps) {
     const [editing, setEditing] = useState(!carData.name);
     const [form, setForm] = useState<CarData>(carData.name ? carData : DEFAULT_CAR);
+    const [dealName, setDealName] = useState('');
+    const [dealPricePerKWh, setDealPricePerKWh] = useState('');
+    const [dealChargeType, setDealChargeType] = useState<'ac' | 'dc' | 'both'>('both');
+    const [editingDealId, setEditingDealId] = useState<string | null>(null);
     const { t } = useI18n();
+
+    const resetDealForm = () => {
+        setDealName('');
+        setDealPricePerKWh('');
+        setDealChargeType('both');
+        setEditingDealId(null);
+    };
 
     const handleSave = async () => {
         if (!form.name.trim()) return;
@@ -49,6 +64,170 @@ export function CarTab({ carData, onSave }: CarTabProps) {
     const updateField = (field: keyof CarData, value: string | number) => {
         setForm((prev) => ({ ...prev, [field]: value }));
     };
+
+    const handleEditDeal = (deal: ChargerDeal) => {
+        setEditingDealId(deal.id);
+        setDealName(deal.name);
+        setDealPricePerKWh(String(deal.pricePerKWh));
+        setDealChargeType(deal.chargeType);
+    };
+
+    const handleSaveDeal = async () => {
+        const normalizedPrice = dealPricePerKWh.replace(/,/g, '.');
+        const parsedPrice = Number(normalizedPrice);
+        if (!dealName.trim() || !Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+            return;
+        }
+
+        try {
+            if (editingDealId) {
+                await onUpdateDeal({
+                    id: editingDealId,
+                    name: dealName.trim(),
+                    pricePerKWh: parsedPrice,
+                    chargeType: dealChargeType,
+                });
+            } else {
+                await onAddDeal({
+                    name: dealName.trim(),
+                    pricePerKWh: parsedPrice,
+                    chargeType: dealChargeType,
+                });
+            }
+            resetDealForm();
+        } catch (err) {
+            console.error('Error saving deal:', err);
+            alert(t.errorSavingDeal);
+        }
+    };
+
+    const handleDeleteDeal = async (id: string) => {
+        try {
+            await onDeleteDeal(id);
+            if (editingDealId === id) {
+                resetDealForm();
+            }
+        } catch (err) {
+            console.error('Error deleting deal:', err);
+            alert(t.errorSavingDeal);
+        }
+    };
+
+    const chargeTypeLabel = (type: 'ac' | 'dc' | 'both'): string => {
+        if (type === 'ac') return t.chargeTypeAc;
+        if (type === 'dc') return t.chargeTypeDc;
+        return t.chargeTypeBoth;
+    };
+
+    const dealsSection = (
+        <section className="space-y-3">
+            <div className="flex items-center gap-2">
+                <Tag size={16} className="text-[var(--color-primary)]" />
+                <h3 className="text-base font-semibold text-[var(--color-text)]">{t.chargerDeals}</h3>
+            </div>
+
+            <div className="bg-[var(--color-card)] rounded-2xl p-4 shadow-sm border border-[var(--color-border)] space-y-3">
+                {deals.length === 0 ? (
+                    <p className="text-sm text-[var(--color-text-muted)]">{t.noDealsYet}</p>
+                ) : (
+                    deals.map((deal) => (
+                        <div
+                            key={deal.id}
+                            className="flex items-center justify-between gap-3 py-2 border-b border-[var(--color-border)] last:border-b-0"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <p className="font-medium truncate">{deal.name}</p>
+                                <p className="text-xs text-[var(--color-text-muted)]">
+                                    {deal.pricePerKWh.toFixed(2)} €/kWh · {chargeTypeLabel(deal.chargeType)}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => handleEditDeal(deal)}
+                                    className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
+                                    aria-label={t.editDeal}
+                                >
+                                    <Edit3 size={14} />
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteDeal(deal.id)}
+                                    className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
+                                    aria-label={t.deleteDeal}
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            <div className="bg-[var(--color-card)] rounded-2xl p-4 shadow-sm border border-[var(--color-border)] space-y-3">
+                <h4 className="font-medium text-sm text-[var(--color-text)]">
+                    {editingDealId ? t.editDeal : t.addDeal}
+                </h4>
+                <div>
+                    <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">{t.dealName}</label>
+                    <input
+                        type="text"
+                        value={dealName}
+                        onChange={(e) => setDealName(e.target.value)}
+                        placeholder={t.dealNamePlaceholder}
+                        className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                    />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">{t.pricePerKWh}</label>
+                        <input
+                            type="number"
+                            inputMode="decimal"
+                            value={dealPricePerKWh}
+                            onChange={(e) => setDealPricePerKWh(e.target.value)}
+                            placeholder={t.pricePerKWhPlaceholder}
+                            step="0.01"
+                            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">{t.chargeType}</label>
+                        <select
+                            value={dealChargeType}
+                            onChange={(e) => setDealChargeType(e.target.value as 'ac' | 'dc' | 'both')}
+                            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                        >
+                            <option value="both">{t.chargeTypeBoth}</option>
+                            <option value="ac">{t.chargeTypeAc}</option>
+                            <option value="dc">{t.chargeTypeDc}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex gap-2">
+                    {editingDealId && (
+                        <button
+                            onClick={resetDealForm}
+                            className="flex-1 py-3 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-medium active:scale-95 transition-transform"
+                        >
+                            {t.cancel}
+                        </button>
+                    )}
+                    <button
+                        onClick={handleSaveDeal}
+                        disabled={
+                            !dealName.trim() ||
+                            !dealPricePerKWh ||
+                            parseFloat(dealPricePerKWh.replace(',', '.')) <= 0
+                        }
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium disabled:opacity-40 active:scale-95 transition-transform"
+                    >
+                        {editingDealId ? <Save size={16} /> : <Plus size={16} />}
+                        {editingDealId ? t.save : t.addDeal}
+                    </button>
+                </div>
+            </div>
+        </section>
+    );
 
     if (!editing && carData.name) {
         return (
@@ -100,6 +279,8 @@ export function CarTab({ carData, onSave }: CarTabProps) {
                     <RotateCcw size={14} />
                     {t.resetVehicle}
                 </button>
+
+                {dealsSection}
             </div>
         );
     }
@@ -185,6 +366,8 @@ export function CarTab({ carData, onSave }: CarTabProps) {
                     {t.save}
                 </button>
             </div>
+
+            {dealsSection}
         </div>
     );
 }

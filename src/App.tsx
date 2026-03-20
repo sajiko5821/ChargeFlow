@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDatabase } from './hooks/useDatabase';
 import { useTheme } from './hooks/useTheme';
 import { useI18n } from './i18n/I18nContext';
@@ -8,13 +8,53 @@ import { ChargingTab } from './components/ChargingTab';
 import { CalculatorTab } from './components/CalculatorTab';
 import { StatisticsTab } from './components/StatisticsTab';
 import type { TabId } from './types';
+import { TAB_ORDER } from './types';
 import { Zap, Loader2, Sun, Moon, Languages } from 'lucide-react';
 
+function getTabFromPath(): TabId {
+  const pathname = window.location.pathname;
+  // Extract tab name from path (e.g., '/car' -> 'car', '/charging' -> 'charging')
+  const segments = pathname.split('/').filter(Boolean);
+  const tab = segments[0] || 'charging';
+  return TAB_ORDER.includes(tab as TabId) ? (tab as TabId) : 'charging';
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('charging');
-  const { ready, carData, sessions, saveCar, addSession, updateSession, deleteSession } = useDatabase();
+  const [activeTab, setActiveTab] = useState<TabId>(getTabFromPath);
+  const {
+    ready,
+    carData,
+    sessions,
+    deals,
+    saveCar,
+    addSession,
+    updateSession,
+    deleteSession,
+    addDeal,
+    updateDeal,
+    deleteDeal,
+  } = useDatabase();
   const { theme, toggleTheme } = useTheme();
   const { t, locale, setLocale } = useI18n();
+
+  // Sync activeTab with URL path
+  useEffect(() => {
+    const newPath = `/${activeTab}`;
+    if (window.location.pathname !== newPath) {
+      window.history.pushState(null, '', newPath);
+    }
+  }, [activeTab]);
+
+  // Sync URL path changes (browser back/forward) with activeTab
+  useEffect(() => {
+    const handlePopState = () => {
+      const tab = getTabFromPath();
+      setActiveTab(tab);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   if (!ready) {
     return (
@@ -58,10 +98,20 @@ function App() {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {activeTab === 'car' && <CarTab carData={carData} onSave={saveCar} />}
+        {activeTab === 'car' && (
+          <CarTab
+            carData={carData}
+            deals={deals}
+            onSave={saveCar}
+            onAddDeal={addDeal}
+            onUpdateDeal={updateDeal}
+            onDeleteDeal={deleteDeal}
+          />
+        )}
         {activeTab === 'charging' && (
           <ChargingTab
             sessions={sessions}
+            deals={deals}
             onAddSession={addSession}
             onUpdateSession={updateSession}
             onDeleteSession={deleteSession}
