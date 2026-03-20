@@ -214,7 +214,11 @@ export function CarTab({ carData, deals, onSave, onAddDeal, onUpdateDeal, onDele
                     )}
                     <button
                         onClick={handleSaveDeal}
-                        disabled={!dealName.trim() || !dealPricePerKWh || parseFloat(dealPricePerKWh) <= 0}
+                        disabled={
+                            !dealName.trim() ||
+                            !dealPricePerKWh ||
+                            parseFloat(dealPricePerKWh.replace(',', '.')) <= 0
+                        }
                         className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium disabled:opacity-40 active:scale-95 transition-transform"
                     >
                         {editingDealId ? <Save size={16} /> : <Plus size={16} />}
