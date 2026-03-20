@@ -91,21 +91,43 @@ docker run -d \
   ghcr.io/sajiko5821/chargeflow
 ```
 
+### Compose
+
+```yaml
+services:
+  chargeflow:
+    image: ghcr.io/sajiko5821/chargeflow:latest
+    container_name: chargeflow
+    restart: unless-stopped
+    ports:
+      - "7920:7920"
+    volumes:
+      - chargeflow-data:/data
+    environment:
+      # File-system permissions — set to your host user's UID/GID
+      # Run `id -u` and `id -g` to find the right values
+      PUID: "1000"
+      PGID: "1000"
+
+volumes:
+  chargeflow-data:
+```
+
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `7920` | HTTP server port |
-| `NODE_ENV` | `production` | Runtime mode in Docker images (enables production hardening paths) |
-| `DB_PATH` | `/data/chargeflow.db` | Path to SQLite database file |
-| `CSV_PATH` | `/data/chargeflow.csv` | Path to CSV export file (set to `""` to disable) |
-| `MQTT_ENABLED` | `false` | Enable local MQTT push integration |
-| `MQTT_BROKER_URL` | `""` | MQTT broker URL, e.g. `mqtt://192.168.1.10:1883` |
-| `MQTT_USERNAME` | `""` | MQTT username |
-| `MQTT_PASSWORD` | `""` | MQTT password |
-| `MQTT_TOPIC_PREFIX` | `chargeflow` | Base topic for published state |
-| `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant MQTT discovery prefix |
-| `MQTT_CLIENT_ID` | `""` | Optional MQTT client ID |
+| Variable                | Default                | Description                                                        |
+| ----------------------- | ---------------------- | ------------------------------------------------------------------ |
+| `PORT`                  | `7920`                 | HTTP server port                                                   |
+| `NODE_ENV`              | `production`           | Runtime mode in Docker images (enables production hardening paths) |
+| `DB_PATH`               | `/data/chargeflow.db`  | Path to SQLite database file                                       |
+| `CSV_PATH`              | `/data/chargeflow.csv` | Path to CSV export file (set to `""` to disable)                   |
+| `MQTT_ENABLED`          | `false`                | Enable local MQTT push integration                                 |
+| `MQTT_BROKER_URL`       | `""`                   | MQTT broker URL, e.g. `mqtt://localhost:1883`                     |
+| `MQTT_USERNAME`         | `""`                   | MQTT username                                                      |
+| `MQTT_PASSWORD`         | `""`                   | MQTT password                                                      |
+| `MQTT_TOPIC_PREFIX`     | `chargeflow`           | Base topic for published state                                     |
+| `MQTT_DISCOVERY_PREFIX` | `homeassistant`        | Home Assistant MQTT discovery prefix                               |
+| `MQTT_CLIENT_ID`        | `""`                   | Optional MQTT client ID                                            |
 
 If `NODE_ENV` is not set (or set to anything other than `production`), the backend uses development behavior.
 
@@ -172,7 +194,7 @@ curl -X PUT http://localhost:7920/api/mqtt \
   -H 'Content-Type: application/json' \
   -d '{
     "enabled": true,
-    "brokerUrl": "mqtt://192.168.1.10:1883",
+    "brokerUrl": "mqtt://localhost:1883",
     "username": "homeassistant",
     "password": "supersecret",
     "topicPrefix": "chargeflow",
