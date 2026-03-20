@@ -81,7 +81,7 @@ export function ChargingTab({ sessions, deals, onAddSession, onUpdateSession, on
     }, [sessions, currentMonthKey]);
 
     const handleAddSession = async () => {
-        const kWhNum = parseFloat(kWh);
+        const kWhNum = parseFloat(kWh.replace(',', '.'));
         const priceNum = effectivePricePerKWh ?? NaN;
         if (isNaN(kWhNum) || isNaN(priceNum) || kWhNum <= 0 || priceNum <= 0) return;
 
