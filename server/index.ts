@@ -1092,6 +1092,11 @@ app.use('/api/{*path}', (_req, res) => {
     res.status(404).json({ error: 'API route not found' });
 });
 
+// Redirect root to /charging
+app.get('/', (_req, res) => {
+    res.redirect(301, '/charging');
+});
+
 // ── Static Files (production) ──
 const distPath = path.join(__dirname, '..', 'dist');
 app.use(express.static(distPath));

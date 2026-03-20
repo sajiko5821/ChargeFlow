@@ -43,3 +43,7 @@ export interface YearlyOverview {
 }
 
 export type TabId = 'car' | 'charging' | 'calculator' | 'statistics';
+
+/** Single source of truth for tab order. Used for navigation, URL routing, and validation. */
+export const TAB_ORDER: TabId[] = ['charging', 'statistics', 'calculator', 'car'];
+
