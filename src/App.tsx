@@ -14,7 +14,7 @@ const validTabs: TabId[] = ['charging', 'statistics', 'calculator', 'car'];
 
 function getTabFromPath(): TabId {
   const pathname = window.location.pathname;
-  // Extract tab name from path (e.g., '/car' -> 'car', '/' -> 'charging')
+  // Extract tab name from path (e.g., '/car' -> 'car', '/charging' -> 'charging')
   const segments = pathname.split('/').filter(Boolean);
   const tab = segments[0] || 'charging';
   return validTabs.includes(tab as TabId) ? (tab as TabId) : 'charging';
@@ -40,7 +40,7 @@ function App() {
 
   // Sync activeTab with URL path
   useEffect(() => {
-    const newPath = activeTab === 'charging' ? '/' : `/${activeTab}`;
+    const newPath = `/${activeTab}`;
     if (window.location.pathname !== newPath) {
       window.history.pushState(null, '', newPath);
     }
