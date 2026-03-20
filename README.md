@@ -91,6 +91,16 @@ docker run -d \
   ghcr.io/sajiko5821/chargeflow
 ```
 
+### Docker Compose
+
+A ready-to-use [`docker-compose.yml`](docker-compose.yml) is included in the repository. Copy it to your desired directory and start the stack:
+
+```bash
+docker compose up -d
+```
+
+The compose file exposes port `7920`, mounts a named volume for persistence, and lists all supported environment variables as commented-out options so you can enable them as needed.
+
 ### Environment Variables
 
 | Variable | Default | Description |

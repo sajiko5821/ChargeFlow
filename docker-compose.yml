@@ -1,0 +1,30 @@
+services:
+  chargeflow:
+    image: ghcr.io/sajiko5821/chargeflow:latest
+    container_name: chargeflow
+    restart: unless-stopped
+    ports:
+      - "7920:7920"
+    volumes:
+      - chargeflow-data:/data
+    environment:
+      # File-system permissions — set to your host user's UID/GID
+      # Run `id -u` and `id -g` to find the right values
+      PUID: "1000"
+      PGID: "1000"
+
+      # Paths inside the container (defaults shown)
+      # DB_PATH: /data/chargeflow.db
+      # CSV_PATH: /data/chargeflow.csv   # set to "" to disable CSV export
+
+      # MQTT / Home Assistant integration (optional)
+      # MQTT_ENABLED: "true"
+      # MQTT_BROKER_URL: mqtt://192.168.1.10:1883
+      # MQTT_USERNAME: homeassistant
+      # MQTT_PASSWORD: supersecret
+      # MQTT_TOPIC_PREFIX: chargeflow
+      # MQTT_DISCOVERY_PREFIX: homeassistant
+      # MQTT_CLIENT_ID: chargeflow-server
+
+volumes:
+  chargeflow-data:
