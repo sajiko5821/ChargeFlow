@@ -725,12 +725,12 @@ async function pushMqttSnapshot(): Promise<void> {
 }
 
 async function syncExternalTargets(): Promise<void> {
+    // Keep CSV export synchronous (part of the core write path)
     syncCsv();
-    try {
-        await pushMqttSnapshot();
-    } catch (err) {
+    // Trigger MQTT snapshot asynchronously so API writes don't block on broker health
+    void pushMqttSnapshot().catch((err) => {
         console.error('MQTT push error:', err);
-    }
+    });
 }
 
 // Initial sync on startup
