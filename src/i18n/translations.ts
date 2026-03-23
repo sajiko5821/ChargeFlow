@@ -72,6 +72,7 @@ export interface Translations {
     noteOptional: string;
     notePlaceholder: string;
     recentSessions: string;
+    allSessions: string;
     noSessionsYet: string;
     addFirstSession: string;
     errorSavingSession: string;
@@ -178,6 +179,7 @@ const de: Translations = {
     noteOptional: 'Notiz (optional)',
     notePlaceholder: 'z.B. IONITY Autobahn A3',
     recentSessions: 'Letzte Ladevorgänge',
+    allSessions: 'Alle Ladevorgänge',
     noSessionsYet: 'Noch keine Ladevorgänge',
     addFirstSession: 'Erfasse deinen ersten Ladevorgang!',
     errorSavingSession: 'Fehler beim Speichern des Ladevorgangs.',
@@ -282,6 +284,7 @@ const en: Translations = {
     noteOptional: 'Note (optional)',
     notePlaceholder: 'e.g. IONITY Highway A3',
     recentSessions: 'Recent sessions',
+    allSessions: 'All sessions',
     noSessionsYet: 'No charging sessions yet',
     addFirstSession: 'Add your first charging session!',
     errorSavingSession: 'Failed to save charging session.',
