@@ -7,6 +7,7 @@ import {
     Edit3,
     Trash2,
     X,
+    ChevronDown,
 } from 'lucide-react';
 import type { ChargerDeal, ChargingSession } from '../types';
 import { useI18n } from '../i18n/I18nContext';
@@ -31,6 +32,11 @@ export function ChargingTab({ sessions, deals, onAddSession, onUpdateSession, on
     const [editDate, setEditDate] = useState('');
     const [editNote, setEditNote] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+    const [expandedMonths, setExpandedMonths] = useState<Set<string>>(() => {
+        const now = new Date();
+        const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        return new Set([key]);
+    });
     const { t, locale } = useI18n();
 
     const localeTag = locale === 'de' ? 'de-DE' : 'en-US';
@@ -79,6 +85,38 @@ export function ChargingTab({ sessions, deals, onAddSession, onUpdateSession, on
         const totalKWh = monthSessions.reduce((sum, s) => sum + s.kWhCharged, 0);
         return { totalCost, totalKWh, count: monthSessions.length };
     }, [sessions, currentMonthKey]);
+
+    const sessionsByMonth = useMemo(() => {
+        const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
+        const groups = new Map<string, { label: string; sessions: ChargingSession[]; totalCost: number; totalKWh: number }>();
+
+        for (const session of sorted) {
+            const d = new Date(session.date);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (!groups.has(key)) {
+                const label = `${t.months[d.getMonth()]} ${d.getFullYear()}`;
+                groups.set(key, { label, sessions: [], totalCost: 0, totalKWh: 0 });
+            }
+            const group = groups.get(key)!;
+            group.sessions.push(session);
+            group.totalCost = Math.round((group.totalCost + session.totalCost) * 100) / 100;
+            group.totalKWh = Math.round((group.totalKWh + session.kWhCharged) * 100) / 100;
+        }
+
+        return Array.from(groups.entries()).sort(([a], [b]) => b.localeCompare(a));
+    }, [sessions, t.months]);
+
+    const toggleMonth = (monthKey: string) => {
+        setExpandedMonths((prev) => {
+            const next = new Set(prev);
+            if (next.has(monthKey)) {
+                next.delete(monthKey);
+            } else {
+                next.add(monthKey);
+            }
+            return next;
+        });
+    };
 
     const handleAddSession = async () => {
         const kWhNum = parseFloat(kWh.replace(',', '.'));
@@ -301,157 +339,192 @@ export function ChargingTab({ sessions, deals, onAddSession, onUpdateSession, on
                 </div>
             )}
 
-            {/* Recent Sessions */}
+            {/* Sessions grouped by month */}
             {sessions.length > 0 && (
-                <div className="space-y-3">
-                    <h3 className="font-semibold text-base">{t.recentSessions}</h3>
-                    {sessions.slice(0, 20).map((session) => (
-                        <div
-                            key={session.id}
-                            className="bg-[var(--color-card)] rounded-xl p-4 shadow-sm border border-[var(--color-border)]"
-                        >
-                            {editingSessionId === session.id ? (
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
-                                            {t.date}
-                                        </label>
-                                        <input
-                                            type="date"
-                                            value={editDate}
-                                            onChange={(e) => setEditDate(e.target.value)}
-                                            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
-                                                {t.charged}
-                                            </label>
-                                            <input
-                                                type="number"
-                                                inputMode="decimal"
-                                                value={editKWh}
-                                                onChange={(e) => setEditKWh(e.target.value)}
-                                                placeholder={t.chargedPlaceholder}
-                                                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
-                                                {t.chargerDeal} / {t.customCostPerKWh}
-                                            </label>
-                                            <input
-                                                type="text"
-                                                list="edit-deal-or-custom-options"
-                                                value={editDealOrCustomInput}
-                                                onChange={(e) => setEditDealOrCustomInput(e.target.value)}
-                                                placeholder={t.customCostPerKWhPlaceholder}
-                                                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                                            />
-                                            <datalist id="edit-deal-or-custom-options">
-                                                {deals.map((deal) => (
-                                                    <option
-                                                        key={deal.id}
-                                                        value={deal.name}
-                                                        label={`${deal.pricePerKWh.toFixed(2)} €/kWh · ${
-                                                            (() => {
-                                                                const type = deal.chargeType.toLowerCase();
-                                                                if (type === 'ac') return t.chargeTypeAc;
-                                                                if (type === 'dc') return t.chargeTypeDc;
-                                                                if (type === 'both') return t.chargeTypeBoth;
-                                                                return deal.chargeType.toUpperCase();
-                                                            })()
-                                                        }`}
-                                                    />
-                                                ))}
-                                            </datalist>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
-                                            {t.noteOptional}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={editNote}
-                                            onChange={(e) => setEditNote(e.target.value)}
-                                            placeholder={t.notePlaceholder}
-                                            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                                        />
-                                    </div>
-
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={cancelEdit}
-                                            className="flex-1 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-medium active:scale-95 transition-transform"
-                                        >
-                                            {t.cancel}
-                                        </button>
-                                        <button
-                                            onClick={() => handleUpdateSession(session.id)}
-                                            disabled={!editDate || !editKWh || !effectiveEditPricePerKWh || parseFloat(editKWh) <= 0 || effectiveEditPricePerKWh <= 0}
-                                            className="flex-1 py-2.5 rounded-xl bg-[var(--color-primary)] text-white font-medium disabled:opacity-40 active:scale-95 transition-transform"
-                                        >
-                                            {t.save}
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between gap-3">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm font-medium">{formatDate(session.date)}</span>
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-highlight)] text-[var(--color-primary)]">
-                                                {session.kWhCharged} kWh
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                                            {session.pricePerKWh.toFixed(2)} €/kWh
-                                            {session.chargerDealName && ` · ${t.dealLabel}: ${session.chargerDealName}`}
-                                            {session.note && ` · ${session.note}`}
-                                        </p>
-                                    </div>
+                <div>
+                    <h3 className="font-semibold text-base mb-3">{t.allSessions}</h3>
+                    {sessionsByMonth.map(([monthKey, { label, sessions: monthSessions, totalCost, totalKWh }]) => {
+                        const isOpen = expandedMonths.has(monthKey);
+                        return (
+                            <div key={monthKey}>
+                                {/* Sticky month header */}
+                                <button
+                                    onClick={() => toggleMonth(monthKey)}
+                                    className="sticky top-0 z-10 w-full flex items-center justify-between px-1 py-2.5 bg-[var(--color-bg)] border-b border-[var(--color-border)] text-left"
+                                >
                                     <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-sm whitespace-nowrap">
-                                            {formatCurrency(session.totalCost)}
+                                        <ChevronDown
+                                            size={16}
+                                            className={`text-[var(--color-text-muted)] transition-transform duration-200 ${isOpen ? '' : '-rotate-90'}`}
+                                        />
+                                        <span className="font-semibold text-sm">{label}</span>
+                                        <span className="text-xs text-[var(--color-text-muted)]">
+                                            {monthSessions.length} {t.charges}
                                         </span>
-                                        <button
-                                            onClick={() => startEdit(session)}
-                                            className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
-                                        >
-                                            <Edit3 size={14} />
-                                        </button>
-                                        {deleteConfirm === session.id ? (
-                                            <div className="flex gap-1">
-                                                <button
-                                                    onClick={() => handleDelete(session.id)}
-                                                    className="p-1.5 rounded-lg bg-[var(--color-highlight-danger)] text-[var(--color-danger)] active:scale-90 transition-transform"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeleteConfirm(null)}
-                                                    className="p-1.5 rounded-lg bg-[var(--color-highlight-muted)] text-[var(--color-text-muted)] active:scale-90 transition-transform"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => setDeleteConfirm(session.id)}
-                                                className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        )}
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                                    <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
+                                        <span>{totalKWh.toFixed(1)} kWh</span>
+                                        <span className="font-semibold text-[var(--color-primary)] text-sm">
+                                            {formatCurrency(totalCost)}
+                                        </span>
+                                    </div>
+                                </button>
+
+                                {/* Month sessions */}
+                                {isOpen && (
+                                    <div className="space-y-2 pt-2 pb-3">
+                                        {monthSessions.map((session) => (
+                                            <div
+                                                key={session.id}
+                                                className="bg-[var(--color-card)] rounded-xl p-4 shadow-sm border border-[var(--color-border)]"
+                                            >
+                                                {editingSessionId === session.id ? (
+                                                    <div className="space-y-3">
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                                                {t.date}
+                                                            </label>
+                                                            <input
+                                                                type="date"
+                                                                value={editDate}
+                                                                onChange={(e) => setEditDate(e.target.value)}
+                                                                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                                                    {t.charged}
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    inputMode="decimal"
+                                                                    value={editKWh}
+                                                                    onChange={(e) => setEditKWh(e.target.value)}
+                                                                    placeholder={t.chargedPlaceholder}
+                                                                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                                                    {t.chargerDeal} / {t.customCostPerKWh}
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    list="edit-deal-or-custom-options"
+                                                                    value={editDealOrCustomInput}
+                                                                    onChange={(e) => setEditDealOrCustomInput(e.target.value)}
+                                                                    placeholder={t.customCostPerKWhPlaceholder}
+                                                                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                                                />
+                                                                <datalist id="edit-deal-or-custom-options">
+                                                                    {deals.map((deal) => (
+                                                                        <option
+                                                                            key={deal.id}
+                                                                            value={deal.name}
+                                                                            label={`${deal.pricePerKWh.toFixed(2)} €/kWh · ${
+                                                                                (() => {
+                                                                                    const type = deal.chargeType.toLowerCase();
+                                                                                    if (type === 'ac') return t.chargeTypeAc;
+                                                                                    if (type === 'dc') return t.chargeTypeDc;
+                                                                                    if (type === 'both') return t.chargeTypeBoth;
+                                                                                    return deal.chargeType.toUpperCase();
+                                                                                })()
+                                                                            }`}
+                                                                        />
+                                                                    ))}
+                                                                </datalist>
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1.5">
+                                                                {t.noteOptional}
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                value={editNote}
+                                                                onChange={(e) => setEditNote(e.target.value)}
+                                                                placeholder={t.notePlaceholder}
+                                                                className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+                                                            />
+                                                        </div>
+
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={cancelEdit}
+                                                                className="flex-1 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text)] font-medium active:scale-95 transition-transform"
+                                                            >
+                                                                {t.cancel}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleUpdateSession(session.id)}
+                                                                disabled={!editDate || !editKWh || !effectiveEditPricePerKWh || parseFloat(editKWh) <= 0 || effectiveEditPricePerKWh <= 0}
+                                                                className="flex-1 py-2.5 rounded-xl bg-[var(--color-primary)] text-white font-medium disabled:opacity-40 active:scale-95 transition-transform"
+                                                            >
+                                                                {t.save}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-medium">{formatDate(session.date)}</span>
+                                                                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-highlight)] text-[var(--color-primary)]">
+                                                                    {session.kWhCharged} kWh
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                                                                {session.pricePerKWh.toFixed(2)} €/kWh
+                                                                {session.chargerDealName && ` · ${t.dealLabel}: ${session.chargerDealName}`}
+                                                                {session.note && ` · ${session.note}`}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-sm whitespace-nowrap">
+                                                                {formatCurrency(session.totalCost)}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => startEdit(session)}
+                                                                className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
+                                                            >
+                                                                <Edit3 size={14} />
+                                                            </button>
+                                                            {deleteConfirm === session.id ? (
+                                                                <div className="flex gap-1">
+                                                                    <button
+                                                                        onClick={() => handleDelete(session.id)}
+                                                                        className="p-1.5 rounded-lg bg-[var(--color-highlight-danger)] text-[var(--color-danger)] active:scale-90 transition-transform"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setDeleteConfirm(null)}
+                                                                        className="p-1.5 rounded-lg bg-[var(--color-highlight-muted)] text-[var(--color-text-muted)] active:scale-90 transition-transform"
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => setDeleteConfirm(session.id)}
+                                                                    className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-highlight-muted)] active:scale-90 transition-transform"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
