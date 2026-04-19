@@ -13,7 +13,7 @@ export function CalculatorTab({ carData }: CalculatorTabProps) {
     const [chargingType, setChargingType] = useState<ChargingType>('dc');
     const [currentSoC, setCurrentSoC] = useState('20');
     const [targetSoC, setTargetSoC] = useState('80');
-    const [pricePerKWh, setPricePerKWh] = useState('0.39');
+    const [pricePerKWh, setPricePerKWh] = useState('0.49');
     const { t, locale } = useI18n();
 
     const localeTag = locale === 'de' ? 'de-DE' : 'en-US';
