@@ -54,3 +54,8 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* iOS/iPadOS safe-area support for bottom-fixed nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
