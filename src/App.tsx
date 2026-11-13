@@ -97,7 +97,7 @@ function App() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {activeTab === 'car' && (
           <CarTab
             carData={carData}
