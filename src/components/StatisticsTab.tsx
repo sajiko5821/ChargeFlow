@@ -15,6 +15,15 @@ interface StatisticsTabProps {
     sessions: ChargingSession[];
 }
 
+function calculateMedian(values: number[]): number {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 export function StatisticsTab({ sessions }: StatisticsTabProps) {
     const { t, locale } = useI18n();
     const { monthlyOverviews, yearlyOverviews } = useChargingStats(sessions, t.months);
@@ -26,12 +35,16 @@ export function StatisticsTab({ sessions }: StatisticsTabProps) {
     const formatCurrency = (value: number): string =>
         value.toLocaleString(localeTag, { style: 'currency', currency: 'EUR' });
 
-    // Average cost and kWh per month
-    const averages = useMemo(() => {
-        if (monthlyOverviews.length === 0) return { avgCost: 0, avgKWh: 0 };
+    // Median and average cost and kWh per month
+    const monthlyStats = useMemo(() => {
+        if (monthlyOverviews.length === 0) {
+            return { medianCost: 0, medianKWh: 0, avgCost: 0, avgKWh: 0 };
+        }
         const totalCost = monthlyOverviews.reduce((sum, m) => sum + m.totalCost, 0);
         const totalKWh = monthlyOverviews.reduce((sum, m) => sum + m.totalKWh, 0);
         return {
+            medianCost: calculateMedian(monthlyOverviews.map((m) => m.totalCost)),
+            medianKWh: calculateMedian(monthlyOverviews.map((m) => m.totalKWh)),
             avgCost: totalCost / monthlyOverviews.length,
             avgKWh: totalKWh / monthlyOverviews.length,
         };
@@ -65,26 +78,26 @@ export function StatisticsTab({ sessions }: StatisticsTabProps) {
 
     return (
         <div className="p-4 space-y-5 pb-24">
-            {/* Average Cards */}
+            {/* Summary Cards (Median + Average) */}
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[var(--color-card)] rounded-2xl p-4 shadow-sm border border-[var(--color-border)]">
                     <div className="flex items-center gap-2 mb-1">
                         <TrendingUp size={16} className="text-[var(--color-primary)]" />
-                        <span className="text-xs text-[var(--color-text-muted)]">{t.avgCostPerMonth}</span>
+                        <span className="text-xs text-[var(--color-text-muted)]">{t.medianCostPerMonth}</span>
                     </div>
-                    <p className="text-lg font-bold">{formatCurrency(averages.avgCost)}</p>
+                    <p className="text-lg font-bold">{formatCurrency(monthlyStats.medianCost)}</p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                        {t.overMonths.replace('{n}', String(monthlyOverviews.length))}
+                        ⌀ {formatCurrency(monthlyStats.avgCost)} · {t.overMonths.replace('{n}', String(monthlyOverviews.length))}
                     </p>
                 </div>
                 <div className="bg-[var(--color-card)] rounded-2xl p-4 shadow-sm border border-[var(--color-border)]">
                     <div className="flex items-center gap-2 mb-1">
                         <Zap size={16} className="text-[var(--color-accent)]" />
-                        <span className="text-xs text-[var(--color-text-muted)]">{t.avgEnergyPerMonth}</span>
+                        <span className="text-xs text-[var(--color-text-muted)]">{t.medianEnergyPerMonth}</span>
                     </div>
-                    <p className="text-lg font-bold">{averages.avgKWh.toFixed(1)} kWh</p>
+                    <p className="text-lg font-bold">{monthlyStats.medianKWh.toFixed(1)} kWh</p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                        {t.overMonths.replace('{n}', String(monthlyOverviews.length))}
+                        ⌀ {monthlyStats.avgKWh.toFixed(1)} kWh · {t.overMonths.replace('{n}', String(monthlyOverviews.length))}
                     </p>
                 </div>
             </div>
