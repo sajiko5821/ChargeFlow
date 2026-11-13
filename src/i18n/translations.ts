@@ -102,8 +102,8 @@ export interface Translations {
     // StatisticsTab
     noStatistics: string;
     noStatisticsHint: string;
-    avgCostPerMonth: string;
-    avgEnergyPerMonth: string;
+    medianCostPerMonth: string;
+    medianEnergyPerMonth: string;
     overMonths: string;
     costPerMonth: string;
     showLess: string;
@@ -206,8 +206,8 @@ const de: Translations = {
 
     noStatistics: 'Noch keine Statistiken',
     noStatisticsHint: 'Erfasse Ladevorgänge, um Statistiken zu sehen.',
-    avgCostPerMonth: '⌀ Kosten/Monat',
-    avgEnergyPerMonth: '⌀ Energie/Monat',
+    medianCostPerMonth: 'Median Kosten/Monat',
+    medianEnergyPerMonth: 'Median Energie/Monat',
     overMonths: 'über {n} Monate',
     costPerMonth: 'Kosten pro Monat',
     showLess: 'Weniger anzeigen',
@@ -310,8 +310,8 @@ const en: Translations = {
 
     noStatistics: 'No statistics yet',
     noStatisticsHint: 'Add charging sessions to see statistics.',
-    avgCostPerMonth: '⌀ Cost/month',
-    avgEnergyPerMonth: '⌀ Energy/month',
+    medianCostPerMonth: 'Median Cost/month',
+    medianEnergyPerMonth: 'Median Energy/month',
     overMonths: 'over {n} months',
     costPerMonth: 'Cost per month',
     showLess: 'Show less',
